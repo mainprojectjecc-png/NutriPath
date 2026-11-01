@@ -80,17 +80,36 @@ It is developed using Python with separate modules for nutrition calculations, w
 
 ## 5. Project Structure
 
-\`\`\`text
-diet_engine/
+The Diet & Weight Planning module is organized into separate Python files to keep the code modular, readable, and easy to maintain.
+
+```text
+NutriPath/
 │
-├── __init__.py
-├── nutrition_calculator.py
-├── weight_calculator.py
-├── meal_recommendations.py
+├── diet_engine/
+│   │
+│   ├── __init__.py
+│   ├── nutrition_calculator.py
+│   ├── weight_calculator.py
+│   ├── meal_recommendations.py
+│   │
+│   └── tests/
+│       └── test_diet_engine.py
 │
-└── tests/
-    └── test_diet_engine.py
-\`\`\`
+└── test_diet_engine.py
+```
+
+### File Description
+
+| File | Responsibility |
+|---|---|
+| `__init__.py` | Exposes the main functions of the Diet Engine package. |
+| `nutrition_calculator.py` | Handles BMI and daily calorie calculations. |
+| `weight_calculator.py` | Handles weight goals and monthly progress milestones. |
+| `meal_recommendations.py` | Generates meal suggestions and food replacement options. |
+| `tests/test_diet_engine.py` | Contains unit tests for the Diet Engine functions. |
+| `test_diet_engine.py` | Runs sample demonstrations of the implemented features. |
+
+**Design Approach:** The module follows a modular structure, separating nutrition calculations, weight planning, meal recommendations, and testing into different files. This makes future updates and integration with the NutriPath backend easier.
 
 ### File Description
 
