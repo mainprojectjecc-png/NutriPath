@@ -111,13 +111,6 @@ NutriPath/
 
 **Design Approach:** The module follows a modular structure, separating nutrition calculations, weight planning, meal recommendations, and testing into different files. This makes future updates and integration with the NutriPath backend easier.
 
-### File Description
-
-- **__init__.py:** Makes the main diet engine functions available through the package.
-- **nutrition_calculator.py:** Contains BMI and daily calorie calculation functions.
-- **weight_calculator.py:** Contains weight goal calculations and monthly progress generation.
-- **meal_recommendations.py:** Contains meal recommendation and food replacement functions.
-- **tests/test_diet_engine.py:** Contains unit tests for checking the module's functionality.
 
 ## 6. Main Python Functions
 
