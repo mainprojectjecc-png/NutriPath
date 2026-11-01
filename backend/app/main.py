@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.routers import users, profiles, weight_progress
+from app.routers import users, profiles, weight_progress, foods
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -21,6 +21,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(profiles.router)
 app.include_router(weight_progress.router)
+app.include_router(foods.router)
 
 @app.get("/")
 def home():
