@@ -26,6 +26,7 @@ def _user_view(user: User) -> dict:
         "id": user.id,
         "full_name": user.full_name,
         "email": user.email,
+        "role": user.Role,
         "onboarding_completed": bool(user.profile and user.profile.goal),
     }
 
@@ -48,6 +49,8 @@ def login(payload: LoginInput, db: Session = Depends(get_db)):
     user = _lookup_user(db, payload.email)
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Email or password is incorrect.")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Your account is inactive.")
     token, expires_at = create_session(db, user)
     return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "user": _user_view(user)}
 

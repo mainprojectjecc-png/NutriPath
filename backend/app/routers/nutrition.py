@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import NutritionLog, NutritionSettings, User, WaterLog
+from app.models import FoodChangeRequest, NutritionLog, NutritionSettings, User, WaterLog
 from app.schemas.schemas import NutritionEntryInput, NutritionSettingsInput, WaterEntryInput
 from app.security import current_user
 
@@ -31,19 +31,33 @@ def _meal_view(entry: NutritionLog) -> dict:
     }
 
 
+def _water_view(entry: WaterLog) -> dict:
+    return {
+        "id": entry.id,
+        "amount_ml": entry.amount_ml,
+        "date": entry.logged_on.isoformat(),
+        "logged_at": entry.created_at.isoformat(),
+    }
+
+
 def _nutrition_state(db: Session, user: User) -> dict:
     meals = db.scalars(
         select(NutritionLog)
         .where(NutritionLog.user_id == user.id)
         .order_by(NutritionLog.logged_on, NutritionLog.created_at, NutritionLog.id)
     ).all()
-    water_entries = db.scalars(select(WaterLog).where(WaterLog.user_id == user.id)).all()
+    water_entries = db.scalars(
+        select(WaterLog)
+        .where(WaterLog.user_id == user.id)
+        .order_by(WaterLog.logged_on, WaterLog.created_at, WaterLog.id)
+    ).all()
     water_by_date: dict[str, int] = defaultdict(int)
     for entry in water_entries:
         water_by_date[entry.logged_on.isoformat()] += entry.amount_ml
     settings = db.scalar(select(NutritionSettings).where(NutritionSettings.user_id == user.id))
     return {
         "meals": [_meal_view(entry) for entry in meals],
+        "waterEntries": [_water_view(entry) for entry in water_entries],
         "waterByDate": dict(water_by_date),
         "calorieGoal": settings.calorie_goal if settings else 2000,
         "waterGoal": settings.water_goal if settings else 2500,
@@ -70,6 +84,16 @@ def delete_nutrition_entry(entry_id: int, db: Session = Depends(get_db), user: U
     entry = db.scalar(select(NutritionLog).where(NutritionLog.id == entry_id, NutritionLog.user_id == user.id))
     if not entry:
         raise HTTPException(status_code=404, detail="Food entry not found.")
+    has_food_change_request = db.scalar(
+        select(FoodChangeRequest.RequestID)
+        .where(FoodChangeRequest.NutritionLogID == entry.id)
+        .limit(1)
+    )
+    if has_food_change_request is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This meal cannot be deleted because it has an associated food-change request.",
+        )
     db.delete(entry)
     db.commit()
     return None
@@ -81,7 +105,48 @@ def add_water_entry(payload: WaterEntryInput, db: Session = Depends(get_db), use
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    return {"id": entry.id, "amount_ml": entry.amount_ml, "date": entry.logged_on.isoformat(), "logged_at": entry.created_at.isoformat()}
+    return _water_view(entry)
+
+
+@router.put("/water/{entry_id}")
+def update_water_entry(
+    entry_id: int,
+    payload: WaterEntryInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    entry = db.scalar(
+        select(WaterLog).where(
+            WaterLog.id == entry_id,
+            WaterLog.user_id == user.id,
+        )
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Water entry not found.")
+    entry.amount_ml = payload.amount_ml
+    entry.logged_on = payload.date
+    db.commit()
+    db.refresh(entry)
+    return _water_view(entry)
+
+
+@router.delete("/water/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_water_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    entry = db.scalar(
+        select(WaterLog).where(
+            WaterLog.id == entry_id,
+            WaterLog.user_id == user.id,
+        )
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Water entry not found.")
+    db.delete(entry)
+    db.commit()
+    return None
 
 
 @router.put("/settings")

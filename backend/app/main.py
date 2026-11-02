@@ -10,6 +10,7 @@ from app import models  # noqa: F401
 from app.routers import (
     auth,
     coach,
+    diet_plans,
     food_change_requests,
     foods,
     meals,
@@ -43,6 +44,7 @@ app.include_router(profile.router)
 app.include_router(nutrition.router)
 app.include_router(users.router)
 app.include_router(profiles.router)
+app.include_router(diet_plans.router)
 app.include_router(weight_progress.router)
 app.include_router(foods.router)
 app.include_router(meals.router)

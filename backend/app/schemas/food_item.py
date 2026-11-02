@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class FoodItemResponse(BaseModel):
     FoodID: int
+    CatalogID: str | None
     FoodName: str
     Category: str | None
     Calories: Decimal

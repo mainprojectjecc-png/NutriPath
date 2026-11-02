@@ -3,13 +3,16 @@ import { Activity, CalendarDays, ChevronLeft, ChevronRight, Droplets, Flame, Plu
 import MealFoodModal from "./MealFoodModal";
 import MealHistoryCalendar from "./MealHistoryCalendar";
 import NutritionChart from "./NutritionChart";
-import { mealTypes } from "./foodCatalog";
+import { foodCatalog, mealTypes } from "./foodCatalog";
 import {
   addFoodEntry,
   addWaterEntry,
+  getActiveFoods,
   getNutritionData,
   removeFoodEntry,
-  saveNutritionSettings
+  removeWaterEntry,
+  saveNutritionSettings,
+  updateWaterEntry
 } from "../../services/nutrition";
 
 function dateKey(date) {
@@ -26,6 +29,14 @@ function formatNutrient(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+function withWaterEntries(data, waterEntries) {
+  const waterByDate = waterEntries.reduce((totals, entry) => {
+    totals[entry.date] = (totals[entry.date] || 0) + entry.amount_ml;
+    return totals;
+  }, {});
+  return { ...data, waterEntries, waterByDate };
+}
+
 function getInsight(totals, calorieGoal, meals, selectedDate) {
   const dayMeals = meals.filter(meal => meal.date === selectedDate);
   if (!dayMeals.length) return "Start by logging a meal. Your personalized nutrition insights will appear here as your food journal fills in.";
@@ -39,13 +50,16 @@ function getInsight(totals, calorieGoal, meals, selectedDate) {
 export default function DailyMealTracker({ userId = "guest" }) {
   const today = dateKey(new Date());
   const [data, setData] = useState(null);
+  const [foods, setFoods] = useState([]);
   const [selectedDate, setSelectedDate] = useState(today);
   const [modalMealType, setModalMealType] = useState(null);
   const [chartPeriod, setChartPeriod] = useState("week");
   const [waterAmount, setWaterAmount] = useState("250");
+  const [editingWaterId, setEditingWaterId] = useState(null);
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState("");
   const [error, setError] = useState("");
+  const [catalogError, setCatalogError] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [waterSaving, setWaterSaving] = useState(false);
@@ -54,10 +68,35 @@ export default function DailyMealTracker({ userId = "guest" }) {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setFoods([]);
+    setCatalogError("");
     getNutritionData(userId)
       .then(result => { if (active) { setData(result); setError(""); } })
       .catch(loadError => { if (active) setError(loadError.message || "Could not load your saved meal tracker data."); })
       .finally(() => { if (active) setLoading(false); });
+    getActiveFoods()
+      .then(items => {
+        if (!active) return;
+        const catalogById = new Map(foodCatalog.map(food => [food.id, food]));
+        setFoods(items.flatMap(item => {
+          const catalogFood = catalogById.get(item.CatalogID);
+          if (!catalogFood) return [];
+          return [{
+            ...catalogFood,
+            name: item.FoodName,
+            category: item.Category,
+            servingLabel: item.ServingSize || catalogFood.servingLabel,
+            calories: Number(item.Calories),
+            protein: Number(item.Protein),
+            carbs: Number(item.Carbs),
+            fats: Number(item.Fat)
+          }];
+        }));
+        setCatalogError("");
+      })
+      .catch(loadError => {
+        if (active) setCatalogError(loadError.message || "The food catalog could not be loaded.");
+      });
     return () => { active = false; };
   }, [userId, loadAttempt]);
 
@@ -69,6 +108,7 @@ export default function DailyMealTracker({ userId = "guest" }) {
     fats: total.fats + meal.fats
   }), { calories: 0, protein: 0, carbs: 0, fats: 0 }), [dayMeals]);
   const water = data?.waterByDate[selectedDate] || 0;
+  const dayWaterEntries = data?.waterEntries?.filter(entry => entry.date === selectedDate) || [];
 
   if (loading) return <div className="tracker-loading" role="status">Loading your meal tracker…</div>;
   if (!data) return <div className="journey-load-error" role="alert"><h2>Food journal unavailable</h2><p>{error}</p><button className="journey-primary-button" type="button" onClick={() => setLoadAttempt(value => value + 1)}>Try again</button></div>;
@@ -99,8 +139,19 @@ export default function DailyMealTracker({ userId = "guest" }) {
     }
     setWaterSaving(true);
     try {
-      await addWaterEntry(selectedDate, amount);
-      setData(current => ({ ...current, waterByDate: { ...current.waterByDate, [selectedDate]: water + amount } }));
+      if (editingWaterId !== null) {
+        const existingEntry = data.waterEntries.find(entry => entry.id === editingWaterId);
+        if (!existingEntry) throw new Error("This water entry is no longer available.");
+        const updated = await updateWaterEntry(existingEntry.id, existingEntry.date, amount);
+        setData(current => withWaterEntries(
+          current,
+          (current.waterEntries || []).map(entry => entry.id === updated.id ? updated : entry)
+        ));
+        setEditingWaterId(null);
+      } else {
+        const entry = await addWaterEntry(selectedDate, amount);
+        setData(current => withWaterEntries(current, [...(current.waterEntries || []), entry]));
+      }
       setError("");
     } catch (waterError) {
       setError(waterError.message || "Your water intake could not be saved.");
@@ -113,11 +164,30 @@ export default function DailyMealTracker({ userId = "guest" }) {
     setWaterAmount(String(amount));
     setWaterSaving(true);
     try {
-      await addWaterEntry(selectedDate, amount);
-      setData(current => ({ ...current, waterByDate: { ...current.waterByDate, [selectedDate]: water + amount } }));
+      const entry = await addWaterEntry(selectedDate, amount);
+      setData(current => withWaterEntries(current, [...(current.waterEntries || []), entry]));
       setError("");
     } catch (waterError) {
       setError(waterError.message || "Your water intake could not be saved.");
+    } finally {
+      setWaterSaving(false);
+    }
+  }
+
+  async function deleteWater(id) {
+    setWaterSaving(true);
+    try {
+      await removeWaterEntry(id);
+      setData(current => withWaterEntries(
+        current,
+        (current.waterEntries || []).filter(entry => entry.id !== id)
+      ));
+      if (editingWaterId === id) {
+        setEditingWaterId(null);
+      }
+      setError("");
+    } catch (waterError) {
+      setError(waterError.message || "Your water entry could not be deleted.");
     } finally {
       setWaterSaving(false);
     }
@@ -206,8 +276,10 @@ export default function DailyMealTracker({ userId = "guest" }) {
           <div className="tracker-panel-heading"><div><h2>Water intake</h2><p>Stay hydrated, one glass at a time</p></div><span className="tracker-water-icon"><Droplets size={19} /></span></div>
           <div className="tracker-water-totals"><strong>{(water / 1000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}<small> L</small></strong><span>of {(data.waterGoal / 1000).toFixed(1)} L goal</span></div>
           <div className="tracker-water-track"><span style={{ width: `${Math.min(water / data.waterGoal * 100, 100)}%` }} /></div>
-          <form className="tracker-water-form" onSubmit={addWater}><label className="tracker-sr-only" htmlFor="tracker-water-amount">Water amount in millilitres</label><input id="tracker-water-amount" type="number" min="1" max="3000" step="50" value={waterAmount} onChange={event => setWaterAmount(event.target.value)} /><span>ml</span><button type="submit" disabled={waterSaving}>{waterSaving ? "Saving…" : <><Plus size={15} /> Log water</>}</button></form>
-          <div className="tracker-water-presets"><span>Quick add</span>{[150, 250, 500].map(amount => <button type="button" key={amount} disabled={waterSaving} onClick={() => addQuickWater(amount)}>{amount} ml</button>)}</div>
+          <form className="tracker-water-form" onSubmit={addWater}><label className="tracker-sr-only" htmlFor="tracker-water-amount">Water amount in millilitres</label><input id="tracker-water-amount" type="number" min="1" max="3000" step="50" value={waterAmount} onChange={event => setWaterAmount(event.target.value)} /><span>ml</span><button type="submit" disabled={waterSaving}>{waterSaving ? "Saving…" : editingWaterId !== null ? "Update water" : <><Plus size={15} /> Log water</>}</button></form>
+          {editingWaterId !== null && <button className="small-button" type="button" onClick={() => setEditingWaterId(null)}>Cancel water edit</button>}
+          <div className="tracker-water-presets"><span>Quick add</span>{[150, 250, 500].map(amount => <button type="button" key={amount} disabled={waterSaving || editingWaterId !== null} onClick={() => addQuickWater(amount)}>{amount} ml</button>)}</div>
+          {dayWaterEntries.map(entry => <div className="tracker-water-presets" key={entry.id}><span>{entry.amount_ml} ml</span><button type="button" disabled={waterSaving} onClick={() => { setEditingWaterId(entry.id); setWaterAmount(String(entry.amount_ml)); }}>Edit</button><button type="button" disabled={waterSaving} onClick={() => deleteWater(entry.id)}>Remove</button></div>)}
         </section>
         <section className="tracker-panel tracker-insight-panel"><div className="tracker-panel-heading"><div><h2>Nutrition insights</h2><p>Personalized from your logged foods</p></div><span className="tracker-insight-icon"><Sparkles size={18} /></span></div><div className="tracker-insight-message">{insight}</div><span className="tracker-insight-footnote">Based on your entries for {isToday ? "today" : selectedDateObject.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · Not medical advice</span></section>
       </div>
@@ -217,7 +289,7 @@ export default function DailyMealTracker({ userId = "guest" }) {
         <MealHistoryCalendar meals={data.meals} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
       </div>
       <p className="tracker-data-note">Your food and water logs are saved to your NutriPath account. Nutrition values are estimates and may vary by recipe and preparation.</p>
-      {modalMealType && <MealFoodModal mealType={modalMealType} onClose={() => setModalMealType(null)} onAdd={addFood} />}
+      {modalMealType && <MealFoodModal mealType={modalMealType} foods={foods} catalogError={catalogError} onClose={() => setModalMealType(null)} onAdd={addFood} />}
     </div>
   );
 }

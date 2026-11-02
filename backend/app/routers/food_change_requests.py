@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, st
 from sqlalchemy import true
 from sqlalchemy.orm import Session
 
-from app.auth import verify_access_token
+from app.security import current_user as get_current_user
+from app.models import User
 from app.database import get_db
 from app.models.coach_suggestion import CoachSuggestion
 from app.models.food_change_request import FoodChangeRequest
@@ -22,10 +23,33 @@ from app.services.food_change_requests import (
 )
 from app.services.transactions import commit_or_raise
 
+from app.models.models import NutritionLog
+
 router = APIRouter(
     prefix="/api/v1/food-change-requests",
     tags=["Food Change Requests"],
 )
+
+
+@router.get(
+    "/",
+    response_model=list[FoodChangeRequestResponse],
+    summary="List the current user's food change requests",
+)
+def get_food_change_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[FoodChangeRequestResponse]:
+    rows = (
+        request_details_query(db)
+        .filter(FoodChangeRequest.UserID == current_user.id)
+        .order_by(
+            FoodChangeRequest.CreatedAt.desc(),
+            FoodChangeRequest.RequestID.desc(),
+        )
+        .all()
+    )
+    return [serialize_request_row(row) for row in rows]
 
 
 def _utcnow() -> datetime:
@@ -93,23 +117,42 @@ def _get_request_response(db: Session, request_id: int) -> FoodChangeRequestResp
 def create_food_change_request(
     request_data: FoodChangeRequestCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> FoodChangeRequestResponse:
-    user_id = current_user["user_id"]
-    meal_item = (
-        db.query(MealItem)
-        .join(Meal, Meal.MealID == MealItem.MealID)
-        .filter(
-            MealItem.MealItemID == request_data.MealItemID,
-            Meal.UserID == user_id,
+    user_id = current_user.id
+
+    if request_data.MealItemID is not None:
+        meal_item = (
+            db.query(MealItem)
+            .join(Meal, Meal.MealID == MealItem.MealID)
+            .filter(
+                MealItem.MealItemID == request_data.MealItemID,
+                Meal.UserID == user_id,
+            )
+            .first()
         )
-        .first()
-    )
-    if meal_item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Meal item not found",
+
+        if meal_item is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Meal item not found",
+            )
+
+    else:
+        nutrition_log = (
+            db.query(NutritionLog)
+            .filter(
+                NutritionLog.id == request_data.NutritionLogID,
+                NutritionLog.user_id == user_id,
+            )
+            .first()
         )
+
+        if nutrition_log is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Nutrition log entry not found",
+            )
 
     if request_data.RequestedFoodID is not None:
         food = (
@@ -120,19 +163,40 @@ def create_food_change_request(
             )
             .first()
         )
+
         if food is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail="Active replacement food not found",
             )
 
+    request_query = db.query(FoodChangeRequest.RequestID).filter(
+        FoodChangeRequest.UserID == user_id,
+        FoodChangeRequest.Status.in_(("Pending", "Reviewed")),
+    )
+    if request_data.MealItemID is not None:
+        request_query = request_query.filter(
+            FoodChangeRequest.MealItemID == request_data.MealItemID
+        )
+    else:
+        request_query = request_query.filter(
+            FoodChangeRequest.NutritionLogID == request_data.NutritionLogID
+        )
+    if request_query.first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An active replacement request already exists for this food.",
+        )
+
     request = FoodChangeRequest(
         UserID=user_id,
-        MealItemID=meal_item.MealItemID,
+        MealItemID=request_data.MealItemID,
+        NutritionLogID=request_data.NutritionLogID,
         RequestedFoodID=request_data.RequestedFoodID,
         Reason=request_data.Reason,
         Status="Pending",
     )
+
     db.add(request)
     commit_or_raise(db)
     db.refresh(request)
@@ -142,35 +206,154 @@ def create_food_change_request(
         .filter(FoodChangeRequest.RequestID == request.RequestID)
         .first()
     )
+
     return serialize_request_row(row)
 
-
-@router.get(
-    "/",
-    response_model=list[FoodChangeRequestResponse],
-    summary="List your food change requests",
+@router.post(
+    "/{request_id}/accept",
+    response_model=FoodChangeRequestResponse,
+    summary="Accept a coach food suggestion",
 )
-def get_food_change_requests(
-    request_status: Literal["Pending", "Reviewed", "Accepted", "Rejected"] | None = Query(
-        default=None,
-        alias="status",
-    ),
+def accept_food_suggestion(
+    request_id: Annotated[int, Path(gt=0)],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
-) -> list[FoodChangeRequestResponse]:
-    requests_query = request_details_query(db).filter(
-        FoodChangeRequest.UserID == current_user["user_id"]
-    )
-    if request_status is not None:
-        requests_query = requests_query.filter(
-            FoodChangeRequest.Status == request_status
-        )
-    rows = requests_query.order_by(
-        FoodChangeRequest.CreatedAt.desc(),
-        FoodChangeRequest.RequestID.desc(),
-    ).all()
-    return [serialize_request_row(row) for row in rows]
+    current_user: User = Depends(get_current_user),
+) -> FoodChangeRequestResponse:
+    user_id = current_user.id
 
+    request, suggestion = _get_owned_request(db, request_id, user_id)
+
+    suggested_food = (
+        db.query(FoodItem)
+        .filter(
+            FoodItem.FoodID == suggestion.SuggestedFoodID,
+            FoodItem.IsActive == true(),
+        )
+        .first()
+    )
+
+    if suggested_food is None:
+        raise HTTPException(
+            status_code=409,
+            detail="The suggested food is no longer active.",
+        )
+
+    now = _utcnow()
+
+    # Update the original MealItem if this is a meal-based request.
+    if request.MealItemID is not None:
+        meal_item = (
+            db.query(MealItem)
+            .join(Meal, Meal.MealID == MealItem.MealID)
+            .filter(
+                MealItem.MealItemID == request.MealItemID,
+                Meal.UserID == user_id,
+            )
+            .first()
+        )
+
+        if meal_item is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Meal item not found",
+            )
+
+        item_updated = (
+            db.query(MealItem)
+            .filter(MealItem.MealItemID == meal_item.MealItemID)
+            .update(
+                {MealItem.FoodID: suggestion.SuggestedFoodID},
+                synchronize_session=False,
+            )
+        )
+
+    # Update the NutritionLog if this is a nutrition-tracker request.
+    else:
+        nutrition_log = (
+            db.query(NutritionLog)
+            .filter(
+                NutritionLog.id == request.NutritionLogID,
+                NutritionLog.user_id == user_id,
+            )
+            .first()
+        )
+
+        if nutrition_log is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Nutrition log entry not found",
+            )
+        if suggested_food.CatalogID is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The suggested food cannot replace this nutrition entry because it has no catalog identifier.",
+            )
+
+        item_updated = (
+            db.query(NutritionLog)
+            .filter(
+                NutritionLog.id == nutrition_log.id,
+                NutritionLog.user_id == user_id,
+            )
+            .update(
+                {
+                    NutritionLog.food_id: suggested_food.CatalogID,
+                    NutritionLog.food_name: suggested_food.FoodName,
+                    NutritionLog.calories: float(suggested_food.Calories),
+                    NutritionLog.protein: float(suggested_food.Protein),
+                    NutritionLog.carbs: float(suggested_food.Carbs),
+                    NutritionLog.fats: float(suggested_food.Fat),
+                },
+                synchronize_session=False,
+            )
+        )
+
+    suggestion_updated = (
+        db.query(CoachSuggestion)
+        .filter(
+            CoachSuggestion.SuggestionID == suggestion.SuggestionID,
+            CoachSuggestion.Status == "Pending",
+        )
+        .update(
+            {
+                CoachSuggestion.Status: "Accepted",
+                CoachSuggestion.UpdatedAt: now,
+            },
+            synchronize_session=False,
+        )
+    )
+
+    request_updated = (
+        db.query(FoodChangeRequest)
+        .filter(
+            FoodChangeRequest.RequestID == request_id,
+            FoodChangeRequest.UserID == user_id,
+            FoodChangeRequest.Status == "Reviewed",
+        )
+        .update(
+            {
+                FoodChangeRequest.Status: "Accepted",
+                FoodChangeRequest.UpdatedAt: now,
+            },
+            synchronize_session=False,
+        )
+    )
+
+    if (
+        suggestion_updated != 1
+        or request_updated != 1
+        or item_updated != 1
+    ):
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="The request or suggestion has changed; reload and try again.",
+        )
+
+    commit_or_raise(db)
+    db.expire_all()
+
+    return _get_request_response(db, request_id)
 
 @router.get(
     "/{request_id}",
@@ -180,13 +363,13 @@ def get_food_change_requests(
 def get_food_change_request(
     request_id: Annotated[int, Path(gt=0)],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> FoodChangeRequestResponse:
     row = (
         request_details_query(db)
         .filter(
             FoodChangeRequest.RequestID == request_id,
-            FoodChangeRequest.UserID == current_user["user_id"],
+            FoodChangeRequest.UserID == current_user.id,
         )
         .first()
     )
@@ -206,13 +389,13 @@ def get_food_change_request(
 def delete_food_change_request(
     request_id: Annotated[int, Path(gt=0)],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     request = (
         db.query(FoodChangeRequest)
         .filter(
             FoodChangeRequest.RequestID == request_id,
-            FoodChangeRequest.UserID == current_user["user_id"],
+            FoodChangeRequest.UserID == current_user.id,
         )
         .first()
     )
@@ -241,7 +424,7 @@ def delete_food_change_request(
         db.query(FoodChangeRequest)
         .filter(
             FoodChangeRequest.RequestID == request_id,
-            FoodChangeRequest.UserID == current_user["user_id"],
+            FoodChangeRequest.UserID == current_user.id,
             FoodChangeRequest.Status == "Pending",
         )
         .delete(synchronize_session=False)
@@ -257,96 +440,6 @@ def delete_food_change_request(
 
 
 @router.post(
-    "/{request_id}/accept",
-    response_model=FoodChangeRequestResponse,
-    summary="Accept a coach food suggestion",
-)
-def accept_food_suggestion(
-    request_id: Annotated[int, Path(gt=0)],
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
-) -> FoodChangeRequestResponse:
-    user_id = current_user["user_id"]
-    request, suggestion = _get_owned_request(db, request_id, user_id)
-    meal_item = (
-        db.query(MealItem)
-        .join(Meal, Meal.MealID == MealItem.MealID)
-        .filter(
-            MealItem.MealItemID == request.MealItemID,
-            Meal.UserID == user_id,
-        )
-        .first()
-    )
-    if meal_item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Meal item not found",
-        )
-    suggested_food = (
-        db.query(FoodItem)
-        .filter(
-            FoodItem.FoodID == suggestion.SuggestedFoodID,
-            FoodItem.IsActive == true(),
-        )
-        .first()
-    )
-    if suggested_food is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="The suggested food is no longer active.",
-        )
-
-    now = _utcnow()
-    suggestion_updated = (
-        db.query(CoachSuggestion)
-        .filter(
-            CoachSuggestion.SuggestionID == suggestion.SuggestionID,
-            CoachSuggestion.Status == "Pending",
-        )
-        .update(
-            {
-                CoachSuggestion.Status: "Accepted",
-                CoachSuggestion.UpdatedAt: now,
-            },
-            synchronize_session=False,
-        )
-    )
-    request_updated = (
-        db.query(FoodChangeRequest)
-        .filter(
-            FoodChangeRequest.RequestID == request_id,
-            FoodChangeRequest.UserID == user_id,
-            FoodChangeRequest.Status == "Reviewed",
-        )
-        .update(
-            {
-                FoodChangeRequest.Status: "Accepted",
-                FoodChangeRequest.UpdatedAt: now,
-            },
-            synchronize_session=False,
-        )
-    )
-    item_updated = (
-        db.query(MealItem)
-        .filter(
-            MealItem.MealItemID == meal_item.MealItemID,
-        )
-        .update(
-            {MealItem.FoodID: suggestion.SuggestedFoodID},
-            synchronize_session=False,
-        )
-    )
-    if suggestion_updated != 1 or request_updated != 1 or item_updated != 1:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="The request or suggestion has changed; reload and try again.",
-        )
-    commit_or_raise(db)
-    return _get_request_response(db, request_id)
-
-
-@router.post(
     "/{request_id}/reject",
     response_model=FoodChangeRequestResponse,
     summary="Reject a coach food suggestion",
@@ -354,12 +447,12 @@ def accept_food_suggestion(
 def reject_food_suggestion(
     request_id: Annotated[int, Path(gt=0)],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> FoodChangeRequestResponse:
     _, suggestion = _get_owned_request(
         db,
         request_id,
-        current_user["user_id"],
+        current_user.id,
     )
     now = _utcnow()
     suggestion_updated = (
@@ -380,7 +473,7 @@ def reject_food_suggestion(
         db.query(FoodChangeRequest)
         .filter(
             FoodChangeRequest.RequestID == request_id,
-            FoodChangeRequest.UserID == current_user["user_id"],
+            FoodChangeRequest.UserID == current_user.id,
             FoodChangeRequest.Status == "Reviewed",
         )
         .update(
@@ -398,4 +491,5 @@ def reject_food_suggestion(
             detail="The request or suggestion has changed; reload and try again.",
         )
     commit_or_raise(db)
+    db.expire_all()
     return _get_request_response(db, request_id)
