@@ -10,6 +10,7 @@ from app.routers import (
     meals,
     food_change_requests,
     coach,
+    diet,
 )
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,6 +34,7 @@ app.include_router(foods.router)
 app.include_router(meals.router)
 app.include_router(food_change_requests.router)
 app.include_router(coach.router)
+app.include_router(diet.router)
 
 @app.get("/")
 def home():
