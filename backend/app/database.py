@@ -2,11 +2,20 @@ import os
 from collections.abc import Generator
 from datetime import datetime, timezone
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
-DATABASE_URL = os.getenv("NUTRIPATH_DATABASE_URL", "sqlite:///./nutripath.db")
+load_dotenv()
+
+DEFAULT_DATABASE_URL = (
+    "mssql+pyodbc://@localhost/NutriPathDB"
+    "?driver=ODBC+Driver+18+for+SQL+Server"
+    "&Trusted_Connection=yes"
+    "&TrustServerCertificate=yes"
+)
+DATABASE_URL = os.getenv("NUTRIPATH_DATABASE_URL", DEFAULT_DATABASE_URL)
 engine_options = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=engine_options, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

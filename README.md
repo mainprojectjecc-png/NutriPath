@@ -1,8 +1,8 @@
 # NutriPath
 
 NutriPath is a personalized nutrition and weight-journey application. User accounts,
-profiles, goals, weight entries, and achievements are stored in the FastAPI/SQLite
-backend. Meal and water entries and nutrition goals are also stored in the
+profiles, goals, weight entries, and achievements are stored in the FastAPI backend.
+Meal and water entries and nutrition goals are also stored in the
 authenticated user's database records. Existing browser-based meal logs are
 migrated into the database on the next authenticated visit.
 
@@ -22,10 +22,18 @@ py -m uvicorn app.main:app --reload
 ```
 
 The API listens on `http://localhost:8000`; interactive API documentation is
-available at `http://localhost:8000/docs`. SQLite data is written to
-`backend/nutripath.db`. Set `NUTRIPATH_DATABASE_URL` to use another SQLAlchemy
-database URL. Set a persistent, private `NUTRIPATH_SECRET_KEY` before production
-deployment and set `NUTRIPATH_ENVIRONMENT=production`.
+available at `http://localhost:8000/docs`. By default, the backend connects to
+the existing local SQL Server `NutriPathDB` using ODBC Driver 18 and Windows
+trusted authentication. Set `NUTRIPATH_DATABASE_URL` to use another SQLAlchemy
+database URL, such as `sqlite:///./nutripath.db` for local development.
+
+Application startup does not create or alter database tables. The SQL Server
+database must be provisioned with the legacy API tables and the journey and
+nutrition tables/profile columns modeled by the application before using those
+routes. No real database schema or records are changed by the integration or its
+tests; the API tests use an isolated in-memory SQLite database.
+Set a persistent, private `NUTRIPATH_SECRET_KEY` before production deployment
+and set `NUTRIPATH_ENVIRONMENT=production`.
 
 Password reset requires an SMTP service. Configure `NUTRIPATH_SMTP_HOST`,
 `NUTRIPATH_SMTP_PORT`, `NUTRIPATH_SMTP_FROM`, and optionally

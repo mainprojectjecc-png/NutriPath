@@ -5,8 +5,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 
 
 class RegistrationInput(BaseModel):
-    full_name: str = Field(min_length=2, max_length=120)
-    email: EmailStr
+    full_name: str = Field(min_length=2, max_length=100)
+    email: EmailStr = Field(max_length=150)
     password: str = Field(min_length=10, max_length=128)
 
     @field_validator("full_name")
@@ -19,12 +19,12 @@ class RegistrationInput(BaseModel):
 
 
 class LoginInput(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=150)
     password: str = Field(min_length=1, max_length=128)
 
 
 class EmailInput(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=150)
 
 
 class PasswordResetInput(BaseModel):
@@ -53,7 +53,7 @@ class WeightGoalInput(BaseModel):
 
 
 class ProfileInput(BaseModel):
-    full_name: str = Field(min_length=2, max_length=120)
+    full_name: str = Field(min_length=2, max_length=100)
     age: int = Field(ge=13, le=120)
     height_cm: float = Field(ge=100, le=250)
     gender: str | None = Field(default=None, max_length=40)
@@ -74,7 +74,7 @@ class ProfileInput(BaseModel):
 
 
 class ProfileUpdateInput(BaseModel):
-    full_name: str = Field(min_length=2, max_length=120)
+    full_name: str = Field(min_length=2, max_length=100)
     age: int = Field(ge=13, le=120)
     height_cm: float = Field(ge=100, le=250)
     gender: str | None = Field(default=None, max_length=40)

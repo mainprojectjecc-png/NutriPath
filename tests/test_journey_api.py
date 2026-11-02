@@ -96,6 +96,34 @@ class JourneyApiTests(unittest.TestCase):
         })
         self.assertEqual(bad_login.status_code, 401)
 
+    def test_backend_jwt_and_main_auth_share_user_model(self):
+        registration = self.client.post("/api/v1/users/register", json={
+            "FullName": "Backend User",
+            "Email": "backend@example.com",
+            "Password": "password-123",
+        })
+        self.assertEqual(registration.status_code, 201, registration.text)
+        user_id = registration.json()["UserID"]
+
+        jwt_login = self.client.post("/api/v1/users/login", data={
+            "username": "backend@example.com",
+            "password": "password-123",
+        })
+        self.assertEqual(jwt_login.status_code, 200, jwt_login.text)
+        jwt_headers = {"Authorization": f"Bearer {jwt_login.json()['access_token']}"}
+        current_user = self.client.get("/api/v1/users/me", headers=jwt_headers)
+        self.assertEqual(current_user.status_code, 200, current_user.text)
+        self.assertEqual(current_user.json()["user_id"], user_id)
+        self.assertEqual(self.client.get("/api/v1/users/me").status_code, 401)
+
+        main_login = self.client.post("/api/auth/login", json={
+            "email": "backend@example.com",
+            "password": "password-123",
+        })
+        self.assertEqual(main_login.status_code, 200, main_login.text)
+        main_headers = {"Authorization": f"Bearer {main_login.json()['access_token']}"}
+        self.assertEqual(self.client.get("/api/auth/me", headers=main_headers).json()["id"], user_id)
+
     def test_onboarding_weight_history_and_milestones_are_user_scoped(self):
         first = self.register("first@example.com")
         response = self.onboard(first["access_token"])
