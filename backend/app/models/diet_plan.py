@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey
-from sqlalchemy.sql import func
 
-from app.database import Base
+from app.database import Base, utc_now
 
 
 class DietPlan(Base):
@@ -28,7 +27,7 @@ class DietPlan(Base):
     CreatedAt = Column(
         DateTime,
         nullable=False,
-        server_default=func.sysutcdatetime()
+        default=utc_now
     )
 
     UpdatedAt = Column(DateTime, nullable=True)

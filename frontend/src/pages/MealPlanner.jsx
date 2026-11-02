@@ -1,45 +1,27 @@
 
-import { useState } from "react";
-import { Plus, Send, Leaf } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, Leaf, Send } from "lucide-react";
+import { getNutritionData } from "../services/nutrition";
 
-const initialMeals = [
-  { type: "Breakfast", time: "8:00 AM", name: "Oats and Banana", detail: "Oats, banana, milk", calories: 320, emoji: "🥣" },
-  { type: "Lunch", time: "1:00 PM", name: "Healthy Veg Rice", detail: "Rice, vegetables, dal", calories: 450, emoji: "🥗" },
-  { type: "Snack", time: "4:30 PM", name: "Fruit and Nuts", detail: "Apple and almonds", calories: 180, emoji: "🍎" },
-  { type: "Dinner", time: "7:30 PM", name: "Chapati and Paneer", detail: "Whole wheat chapati, paneer", calories: 380, emoji: "🍽️" }
-];
+function todayKey() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+}
 
-export default function MealPlanner() {
-  const [meals, setMeals] = useState(initialMeals);
+export default function MealPlanner({ userId, setActivePage }) {
+  const [trackerData, setTrackerData] = useState(null);
   const [food, setFood] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    getNutritionData(userId)
+      .then(setTrackerData)
+      .catch(error => setMessage(error.message || "Your food journal could not be loaded."));
+  }, [userId]);
+
+  const meals = useMemo(() => trackerData?.meals.filter(meal => meal.date === todayKey()) || [], [trackerData]);
   const total = meals.reduce((sum, meal) => sum + meal.calories, 0);
-
-  function addMeal() {
-    const name = prompt("Enter meal name:");
-    if (!name?.trim()) return;
-
-    const calories = Number(prompt("Enter estimated calories:", "200"));
-
-    if (!Number.isFinite(calories) || calories < 0) {
-      alert("Enter a valid calorie amount.");
-      return;
-    }
-
-    setMeals(prev => [
-      ...prev,
-      {
-        type: "Additional meal",
-        time: "Custom",
-        name,
-        detail: "Custom meal entry",
-        calories,
-        emoji: "🥑"
-      }
-    ]);
-  }
 
   function submitRequest(e) {
     e.preventDefault();
@@ -49,9 +31,7 @@ export default function MealPlanner() {
       return;
     }
 
-    setMessage(`Request for ${food} submitted successfully (demo).`);
-    setFood("");
-    setReason("");
+    setMessage("Food replacement requests are not connected to a service yet. Your request was not sent.");
   }
 
   return (
@@ -62,42 +42,42 @@ export default function MealPlanner() {
           <h1>Meal Planner</h1>
           <p>Plan balanced meals and make healthier food choices.</p>
         </div>
-        <button className="primary-button" onClick={addMeal}>
-          <Plus size={17} /> Add meal
+        <button className="primary-button" onClick={() => setActivePage("Daily Meal Tracker")}>
+          <ArrowUpRight size={17} /> Log food
         </button>
       </div>
 
       <div className="meal-summary">
         <div>
-          <span>Today's planned calories</span>
+          <span>Today's logged calories</span>
           <h2>{total} <small>kcal</small></h2>
-          <p>Sample daily target: 1,800 kcal</p>
+          <p>Daily goal: {trackerData?.calorieGoal.toLocaleString() || "—"} kcal</p>
         </div>
         <div className="hero-art">🥑</div>
       </div>
 
       <div className="section-heading">
         <div>
-          <h2>Your meal schedule</h2>
-          <p>A balanced meal plan for your day.</p>
+          <h2>Meals logged today</h2>
+          <p>Based on foods in your daily tracker.</p>
         </div>
       </div>
 
       <div className="planned-meals">
-        {meals.map((meal, index) => (
-          <div className="planned-meal" key={`${meal.name}-${index}`}>
+        {meals.length ? meals.map(meal => (
+          <div className="planned-meal" key={meal.id}>
             <div className="food-emoji">{meal.emoji}</div>
             <div className="meal-info">
-              <span className="meal-type">{meal.type} · {meal.time}</span>
-              <strong>{meal.name}</strong>
-              <small>{meal.detail}</small>
+              <span className="meal-type">{meal.mealType}</span>
+              <strong>{meal.foodName}</strong>
+              <small>{meal.quantity} × {meal.servingLabel} · {Math.round(meal.servingGrams * meal.quantity)} g</small>
             </div>
             <div className="meal-right">
-              <strong>{meal.calories} kcal</strong>
-              <span>Estimated</span>
+              <strong>{Math.round(meal.calories)} kcal</strong>
+              <span>Logged today</span>
             </div>
           </div>
-        ))}
+        )) : <div className="planner-empty"><p>No foods logged today yet.</p><button className="primary-button" type="button" onClick={() => setActivePage("Daily Meal Tracker")}>Open daily tracker <ArrowUpRight size={15} /></button></div>}
       </div>
 
       <div className="section-heading">
@@ -135,7 +115,7 @@ export default function MealPlanner() {
         <Leaf size={24} />
         <div>
           <strong>Healthy eating reminder</strong>
-          <p>Include protein, fibre and a variety of vegetables in your daily meals.</p>
+          <p>Keep logging your food in the Daily Meal Tracker to see your personal nutrition summary.</p>
         </div>
       </div>
     </>

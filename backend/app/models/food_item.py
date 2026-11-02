@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, Numeric, Boolean, DateTime
-from sqlalchemy.sql import func
-from app.database import Base
+from app.database import Base, utc_now
 
 class FoodItem(Base):
     __tablename__ = "FoodItems"
@@ -15,4 +14,4 @@ class FoodItem(Base):
     Fiber = Column(Numeric(8, 2), nullable=False, server_default="0")
     ServingSize = Column(String(50))
     IsActive = Column(Boolean, nullable=False, server_default="1")
-    CreatedAt = Column(DateTime, nullable=False, server_default=func.sysutcdatetime())
+    CreatedAt = Column(DateTime, nullable=False, default=utc_now)

@@ -5,6 +5,8 @@ import Topbar from "./Topbar";
 export default function Layout({
   activePage,
   setActivePage,
+  onLogout,
+  user,
   children
 }) {
   return (
@@ -12,10 +14,12 @@ export default function Layout({
       <Sidebar
         activePage={activePage}
         setActivePage={setActivePage}
+        onLogout={onLogout}
+        user={user}
       />
 
       <main className="main-area">
-        <Topbar />
+        <Topbar user={user} />
         <div className="page-content">
           {children}
           <footer className="footer">

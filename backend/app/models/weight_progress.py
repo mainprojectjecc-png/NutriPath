@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey
-from sqlalchemy.sql import func
-from app.database import Base
+from app.database import Base, utc_now
 
 class WeightProgress(Base):
     __tablename__ = "WeightProgress"
@@ -10,4 +9,4 @@ class WeightProgress(Base):
     WeightKg = Column(Numeric(6, 2), nullable=False)
     RecordDate = Column(Date, nullable=False)
     Notes = Column(String(255))
-    CreatedAt = Column(DateTime, nullable=False, server_default=func.sysutcdatetime())
+    CreatedAt = Column(DateTime, nullable=False, default=utc_now)

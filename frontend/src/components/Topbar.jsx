@@ -1,7 +1,7 @@
 
 import { Search, Bell, ChevronDown } from "lucide-react";
 
-export default function Topbar() {
+export default function Topbar({ user }) {
   return (
     <header className="topbar">
       <div className="top-search">
@@ -17,10 +17,10 @@ export default function Topbar() {
         </button>
 
         <div className="profile">
-          <div className="avatar">N</div>
+          <div className="avatar">{user?.full_name?.trim().charAt(0).toUpperCase() || "N"}</div>
           <div className="profile-info">
-            <strong>My Account</strong>
-            <span>Healthy Explorer</span>
+            <strong>{user?.full_name || "My Account"}</strong>
+            <span>{user?.email || "Healthy Explorer"}</span>
           </div>
           <ChevronDown size={17} />
         </div>
