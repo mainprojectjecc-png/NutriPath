@@ -5,23 +5,8 @@ import {
   MessageCircle, Leaf, ThumbsUp
 } from "lucide-react";
 
-const initialRequests = [
-  {
-    id: 1,
-    food: "White bread",
-    suggestion: "Whole wheat bread",
-    status: "Suggested"
-  },
-  {
-    id: 2,
-    food: "Sugary drinks",
-    suggestion: "Unsweetened lemon water",
-    status: "Pending"
-  }
-];
-
 export default function HealthCoach() {
-  const [requests, setRequests] = useState(initialRequests);
+  const [requests, setRequests] = useState([]);
   const [food, setFood] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
@@ -52,7 +37,7 @@ export default function HealthCoach() {
       }
     ]);
 
-    setMessage("Your request has been submitted successfully (demo).");
+    setMessage("Your request is saved for this session only; it has not been sent to a coach.");
     setFood("");
     setReason("");
   }

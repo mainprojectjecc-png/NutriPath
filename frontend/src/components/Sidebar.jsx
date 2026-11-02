@@ -2,21 +2,23 @@
 import {
   LayoutDashboard,
   Utensils,
+  ClipboardList,
   TrendingUp,
   HeartPulse,
   Leaf,
-  Settings,
+  CircleUserRound,
   LogOut
 } from "lucide-react";
 
 const menu = [
   { name: "Dashboard", icon: LayoutDashboard },
+  { name: "Daily Meal Tracker", icon: ClipboardList },
   { name: "Meal Planner", icon: Utensils },
   { name: "Weight Journey", icon: TrendingUp },
   { name: "Health Coach", icon: HeartPulse }
 ];
 
-export default function Sidebar({ activePage, setActivePage }) {
+export default function Sidebar({ activePage, setActivePage, onLogout, user }) {
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -44,19 +46,19 @@ export default function Sidebar({ activePage, setActivePage }) {
 
       <div className="sidebar-bottom">
         <p className="side-label">PREFERENCES</p>
-        <button className="nav-item" onClick={() => alert("Settings coming soon")}>
-          <Settings size={19} />
-          Settings
+        <button className="nav-item" onClick={() => setActivePage("Weight Journey")}>
+          <CircleUserRound size={19} />
+          My profile
         </button>
-        <button className="nav-item" onClick={() => setActivePage("Dashboard")}>
+        <button className="nav-item" onClick={onLogout}>
           <LogOut size={19} />
-          Logout
+          Sign out
         </button>
 
         <div className="sidebar-tip">
           <Leaf size={23} />
-          <h4>Small steps, big changes!</h4>
-          <p>Every healthy choice brings you closer to your goals.</p>
+          <h4>{user?.full_name ? `You’ve got this, ${user.full_name.split(" ")[0]}!` : "Small steps, big changes!"}</h4>
+          <p>Your progress is personal. Keep taking it one day at a time.</p>
         </div>
       </div>
     </aside>
