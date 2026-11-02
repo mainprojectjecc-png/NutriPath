@@ -1,35 +1,35 @@
+import os
+from collections.abc import Generator
+from datetime import datetime, timezone
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# NutriPath MSSQL Database Connection
-DATABASE_URL = (
+
+load_dotenv()
+
+DEFAULT_DATABASE_URL = (
     "mssql+pyodbc://@localhost/NutriPathDB"
     "?driver=ODBC+Driver+18+for+SQL+Server"
     "&Trusted_Connection=yes"
     "&TrustServerCertificate=yes"
 )
-
-# Create SQLAlchemy Engine
-engine = create_engine(
-    DATABASE_URL,
-    echo=True,
-    pool_pre_ping=True
-)
-
-# Database Session
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-
-# Base class for database models
-Base = declarative_base()
+DATABASE_URL = os.getenv("NUTRIPATH_DATABASE_URL", DEFAULT_DATABASE_URL)
+engine_options = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=engine_options, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-# Database Dependency
-def get_db():
+class Base(DeclarativeBase):
+    pass
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db

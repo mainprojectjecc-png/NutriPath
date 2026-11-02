@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey
-from sqlalchemy.sql import func
-from app.database import Base
+from app.database import Base, utc_now
 
 class MealItem(Base):
     __tablename__ = "MealItems"
@@ -10,4 +9,4 @@ class MealItem(Base):
     FoodID = Column(Integer, ForeignKey("FoodItems.FoodID"), nullable=False)
     Quantity = Column(Numeric(8, 2), nullable=False)
     ServingUnit = Column(String(50), nullable=False)
-    CreatedAt = Column(DateTime, nullable=False, server_default=func.sysutcdatetime())
+    CreatedAt = Column(DateTime, nullable=False, default=utc_now)
