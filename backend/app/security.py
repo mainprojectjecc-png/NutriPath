@@ -117,7 +117,7 @@ def current_user(
     session = db.scalar(
         select(LoginSession).where(
             LoginSession.token_hash == _token_hash(token),
-            LoginSession.revoked.is_(False),
+            LoginSession.revoked == False,  # noqa: E712
         )
     )
     if not session or session.expires_at <= utc_now():
