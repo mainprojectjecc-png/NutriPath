@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, Unicode, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.database import Base, utc_now
@@ -134,7 +134,7 @@ class NutritionLog(Base):
     user_id: Mapped[int] = mapped_column("UserID", ForeignKey("Users.UserID", ondelete="CASCADE"), index=True, nullable=False)
     food_id: Mapped[str] = mapped_column(String(80), nullable=False)
     food_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    emoji: Mapped[str] = mapped_column(String(16), default="🥗", nullable=False)
+    emoji: Mapped[str] = mapped_column(Unicode(16), default="🥗", nullable=False)
     meal_type: Mapped[str] = mapped_column(String(20), nullable=False)
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     serving_label: Mapped[str] = mapped_column(String(80), nullable=False)

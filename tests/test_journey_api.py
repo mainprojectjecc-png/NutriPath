@@ -17,6 +17,7 @@ from app.database import Base, get_db
 from app.main import app
 from app.models import FoodChangeRequest, FoodItem, NutritionLog, User
 from app.security import hash_password, verify_password
+from app.services.food_emojis import FOOD_EMOJI_BY_ID, FOOD_METADATA_BY_ID
 from app.services.qa_accounts import QAAccount, provision_qa_accounts
 
 
@@ -596,12 +597,15 @@ class JourneyApiTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200, login.text)
 
     def test_nutrition_logs_and_preferences_are_user_scoped(self):
+        self.assertEqual(len(FOOD_EMOJI_BY_ID), 32)
+        self.assertTrue(all(emoji and "?" not in emoji for emoji in FOOD_EMOJI_BY_ID.values()))
+        self.assertTrue(all(item["servingGrams"] > 0 and item["servingLabel"] for item in FOOD_METADATA_BY_ID.values()))
         first = self.register("nutrition@example.com")
         first_headers = {"Authorization": f"Bearer {first['access_token']}"}
         food = {
             "food_id": "idli",
             "food_name": "Idli",
-            "emoji": "🍘",
+            "emoji": "??",
             "meal_type": "Breakfast",
             "quantity": 2,
             "serving_label": "1 piece",
@@ -615,6 +619,7 @@ class JourneyApiTests(unittest.TestCase):
         added = self.client.post("/api/nutrition/meals", headers=first_headers, json=food)
         self.assertEqual(added.status_code, 201, added.text)
         self.assertEqual(added.json()["foodName"], "Idli")
+        self.assertEqual(added.json()["emoji"], "🍘")
 
         water = self.client.post("/api/nutrition/water", headers=first_headers, json={
             "amount_ml": 250,
@@ -627,6 +632,7 @@ class JourneyApiTests(unittest.TestCase):
         })
         nutrition = self.client.get("/api/nutrition", headers=first_headers).json()
         self.assertEqual(len(nutrition["meals"]), 1)
+        self.assertEqual(nutrition["meals"][0]["emoji"], "🍘")
         self.assertEqual(nutrition["waterByDate"][date.today().isoformat()], 250)
         self.assertEqual(nutrition["calorieGoal"], 1800)
 
@@ -885,6 +891,14 @@ class JourneyApiTests(unittest.TestCase):
             "Poha",
         )
         self.assertEqual(accepted.json()["NutritionLog"]["food_id"], "poha")
+        self.assertEqual(accepted.json()["NutritionLog"]["emoji"], "🍲")
+        self.assertEqual(accepted.json()["NutritionLog"]["id"], nutrition_entry_id)
+        self.assertEqual(accepted.json()["NutritionLog"]["quantity"], 2)
+        self.assertEqual(accepted.json()["NutritionLog"]["serving_label"], "1 bowl")
+        self.assertEqual(accepted.json()["NutritionLog"]["serving_grams"], 180)
+        self.assertEqual(accepted.json()["NutritionLog"]["calories"], 500)
+        self.assertEqual(accepted.json()["NutritionLog"]["protein"], 10)
+        accepted_meal = accepted.json()["NutritionLog"]
 
         rejected_request = self.client.post(
             "/api/v1/food-change-requests/",
@@ -906,6 +920,17 @@ class JourneyApiTests(unittest.TestCase):
         self.assertEqual(rejected.status_code, 200, rejected.text)
         self.assertEqual(rejected.json()["Status"], "Rejected")
         self.assertEqual(rejected.json()["Suggestion"]["Status"], "Rejected")
+        rejected_meal = next(
+            meal
+            for meal in self.client.get(
+                "/api/nutrition",
+                headers=member_headers,
+            ).json()["meals"]
+            if meal["id"] == nutrition_entry_id
+        )
+        self.assertEqual(rejected_meal["foodId"], accepted_meal["food_id"])
+        self.assertEqual(rejected_meal["emoji"], accepted_meal["emoji"])
+        self.assertEqual(rejected_meal["calories"], accepted_meal["calories"])
 
         uncatalogued_request = self.client.post(
             "/api/v1/food-change-requests/",

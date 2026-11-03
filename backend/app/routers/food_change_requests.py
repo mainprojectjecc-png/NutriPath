@@ -22,6 +22,11 @@ from app.services.food_change_requests import (
     serialize_request_row,
 )
 from app.services.transactions import commit_or_raise
+from app.services.food_emojis import (
+    DEFAULT_FOOD_EMOJI,
+    get_canonical_food_emoji,
+    get_canonical_food_serving,
+)
 
 from app.models.models import NutritionLog
 
@@ -289,6 +294,12 @@ def accept_food_suggestion(
                 detail="The suggested food cannot replace this nutrition entry because it has no catalog identifier.",
             )
 
+        serving = get_canonical_food_serving(suggested_food.CatalogID)
+        serving_label, serving_grams = serving or (
+            suggested_food.ServingSize or nutrition_log.serving_label,
+            nutrition_log.serving_grams,
+        )
+        quantity = nutrition_log.quantity
         item_updated = (
             db.query(NutritionLog)
             .filter(
@@ -299,10 +310,16 @@ def accept_food_suggestion(
                 {
                     NutritionLog.food_id: suggested_food.CatalogID,
                     NutritionLog.food_name: suggested_food.FoodName,
-                    NutritionLog.calories: float(suggested_food.Calories),
-                    NutritionLog.protein: float(suggested_food.Protein),
-                    NutritionLog.carbs: float(suggested_food.Carbs),
-                    NutritionLog.fats: float(suggested_food.Fat),
+                    NutritionLog.emoji: (
+                        get_canonical_food_emoji(suggested_food.CatalogID)
+                        or DEFAULT_FOOD_EMOJI
+                    ),
+                    NutritionLog.serving_label: serving_label,
+                    NutritionLog.serving_grams: serving_grams,
+                    NutritionLog.calories: float(suggested_food.Calories) * quantity,
+                    NutritionLog.protein: float(suggested_food.Protein) * quantity,
+                    NutritionLog.carbs: float(suggested_food.Carbs) * quantity,
+                    NutritionLog.fats: float(suggested_food.Fat) * quantity,
                 },
                 synchronize_session=False,
             )

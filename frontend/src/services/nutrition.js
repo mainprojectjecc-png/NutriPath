@@ -1,5 +1,6 @@
 import api from "./api";
 import { loadMealTrackerData } from "./mealTracker";
+import { getCanonicalFoodEmoji } from "../features/daily-meals/foodCatalog";
 
 function migrationKey(userId) {
   return `nutripath.nutrition-api-migration.v1.${userId}`;
@@ -51,7 +52,7 @@ export function addFoodEntry(food, date) {
   return api.post("/api/nutrition/meals", {
     food_id: food.foodId,
     food_name: food.foodName,
-    emoji: food.emoji,
+    emoji: getCanonicalFoodEmoji(food.foodId) || food.emoji,
     meal_type: food.mealType,
     quantity: food.quantity,
     serving_label: food.servingLabel,

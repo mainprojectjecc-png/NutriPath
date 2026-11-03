@@ -8,16 +8,24 @@ from app.database import get_db
 from app.models import FoodChangeRequest, NutritionLog, NutritionSettings, User, WaterLog
 from app.schemas.schemas import NutritionEntryInput, NutritionSettingsInput, WaterEntryInput
 from app.security import current_user
+from app.services.food_emojis import (
+    DEFAULT_FOOD_EMOJI,
+    get_canonical_food_emoji,
+    is_corrupted_emoji,
+)
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 
 
 def _meal_view(entry: NutritionLog) -> dict:
+    emoji = get_canonical_food_emoji(entry.food_id) or entry.emoji
+    if is_corrupted_emoji(emoji):
+        emoji = DEFAULT_FOOD_EMOJI
     return {
         "id": entry.id,
         "foodId": entry.food_id,
         "foodName": entry.food_name,
-        "emoji": entry.emoji,
+        "emoji": emoji,
         "mealType": entry.meal_type,
         "quantity": entry.quantity,
         "servingLabel": entry.serving_label,
