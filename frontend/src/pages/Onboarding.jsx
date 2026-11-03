@@ -17,6 +17,9 @@ const initialForm = {
   activity_level: "light",
   dietary_preference: "No preference",
   allergies: "",
+  intolerances: "",
+  foods_to_avoid: "",
+  other_dietary_restrictions: "",
   exercise_preferences: "",
   daily_routine: ""
 };
@@ -45,6 +48,7 @@ function validateStep(step, form) {
     if (!form.start_date || form.start_date > new Date().toISOString().slice(0, 10)) return "Choose a start date no later than today.";
   }
   if (step === 2 && form.dietary_preference.trim().length < 2) return "Choose a dietary preference.";
+  if (step === 2 && form.dietary_preference === "Other" && !form.other_dietary_restrictions.trim()) return "Describe the ingredients or food groups you avoid.";
   return "";
 }
 
@@ -102,6 +106,9 @@ export default function Onboarding({ user, onComplete, onLogout }) {
         activity_level: form.activity_level,
         dietary_preference: form.dietary_preference,
         allergies: form.allergies.trim(),
+        intolerances: form.intolerances.trim(),
+        foods_to_avoid: form.foods_to_avoid.trim(),
+        other_dietary_restrictions: form.other_dietary_restrictions.trim(),
         exercise_preferences: form.exercise_preferences.trim(),
         daily_routine: form.daily_routine.trim(),
         goal: {
@@ -149,7 +156,10 @@ export default function Onboarding({ user, onComplete, onLogout }) {
         {step === 2 && <div className="journey-onboarding-fields">
           <label className="journey-onboarding-field journey-field-full">Activity level<select value={form.activity_level} onChange={event => update("activity_level", event.target.value)}><option value="sedentary">Mostly sitting / sedentary</option><option value="light">Light activity</option><option value="moderate">Moderately active</option><option value="active">Active most days</option><option value="very_active">Very active</option></select></label>
           <label className="journey-onboarding-field journey-field-full">Dietary preference<select value={form.dietary_preference} onChange={event => update("dietary_preference", event.target.value)}>{["No preference", "Vegetarian", "Vegan", "Pescatarian", "Eggetarian", "Omnivore", "Other"].map(choice => <option key={choice}>{choice}</option>)}</select></label>
-          <label className="journey-onboarding-field journey-field-full">Food allergies or restrictions <span className="journey-optional">Optional</span><textarea rows="2" value={form.allergies} onChange={event => update("allergies", event.target.value)} maxLength="1000" placeholder="List any allergies or foods you avoid" /></label>
+          <label className="journey-onboarding-field journey-field-full">Food allergies <span className="journey-optional">Optional</span><textarea rows="2" value={form.allergies} onChange={event => update("allergies", event.target.value)} maxLength="1000" placeholder="Peanuts, tree nuts, milk, eggs, soy, wheat/gluten, fish, shellfish, sesame, or other allergies" /></label>
+          <label className="journey-onboarding-field journey-field-full">Food intolerances <span className="journey-optional">Optional</span><textarea rows="2" value={form.intolerances} onChange={event => update("intolerances", event.target.value)} maxLength="1000" placeholder="List any intolerances" /></label>
+          <label className="journey-onboarding-field journey-field-full">Foods to avoid <span className="journey-optional">Optional</span><textarea rows="2" value={form.foods_to_avoid} onChange={event => update("foods_to_avoid", event.target.value)} maxLength="1000" placeholder="Ingredients or foods you choose to avoid" /></label>
+          <label className="journey-onboarding-field journey-field-full">Other dietary restrictions {form.dietary_preference === "Other" ? <span className="journey-optional">Required for Other</span> : <span className="journey-optional">Optional</span>}<textarea rows="2" value={form.other_dietary_restrictions} onChange={event => update("other_dietary_restrictions", event.target.value)} maxLength="1000" placeholder="List ingredients or food groups you avoid, separated by commas" /></label>
           <label className="journey-onboarding-field journey-field-full">Exercise preferences <span className="journey-optional">Optional</span><textarea rows="2" value={form.exercise_preferences} onChange={event => update("exercise_preferences", event.target.value)} maxLength="1000" placeholder="Activities you enjoy or would like to try" /></label>
           <label className="journey-onboarding-field journey-field-full">Daily routine <span className="journey-optional">Optional</span><textarea rows="2" value={form.daily_routine} onChange={event => update("daily_routine", event.target.value)} maxLength="1000" placeholder="Anything about your schedule we should consider" /></label>
         </div>}
@@ -157,7 +167,7 @@ export default function Onboarding({ user, onComplete, onLogout }) {
         {step === 3 && <div className="journey-review-list">
           <section><div><h3>Personal details</h3></div><button type="button" onClick={() => setStep(0)}>Edit</button><p><strong>{form.full_name}</strong> · {form.age} years · {form.height_cm} cm{form.gender ? ` · ${form.gender.replace("_", " ")}` : ""}</p></section>
           <section><div><h3>Weight goal</h3></div><button type="button" onClick={() => setStep(1)}>Edit</button><p>{form.goal_type.replace("_", " ")} · {form.starting_weight_kg} kg → {form.target_weight_kg} kg · {form.duration} {form.duration_unit}</p><p>Journey starts {new Date(`${form.start_date}T12:00:00`).toLocaleDateString()}</p></section>
-          <section><div><h3>Lifestyle</h3></div><button type="button" onClick={() => setStep(2)}>Edit</button><p>{form.activity_level.replace("_", " ")} · {form.dietary_preference}</p><p>{form.allergies || "No allergies or restrictions added."}</p><p>{form.exercise_preferences || "No exercise preferences added."}</p><p>{form.daily_routine || "No daily routine notes added."}</p></section>
+          <section><div><h3>Lifestyle</h3></div><button type="button" onClick={() => setStep(2)}>Edit</button><p>{form.activity_level.replace("_", " ")} · {form.dietary_preference}</p><p>{[form.allergies, form.intolerances, form.foods_to_avoid, form.other_dietary_restrictions].filter(Boolean).join(" · ") || "No allergies or restrictions added."}</p><p>{form.exercise_preferences || "No exercise preferences added."}</p><p>{form.daily_routine || "No daily routine notes added."}</p></section>
           {Number(form.starting_weight_kg) > 20 && Number(form.target_weight_kg) > 20 && <GoalSummary form={form} />}
           <p className="journey-review-consent">Your details are stored securely and only used to personalize your NutriPath experience.</p>
         </div>}

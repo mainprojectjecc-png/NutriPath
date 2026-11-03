@@ -62,6 +62,9 @@ class ProfileInput(BaseModel):
     activity_level: Literal["sedentary", "light", "moderate", "active", "very_active"]
     dietary_preference: str = Field(min_length=2, max_length=60)
     allergies: str = Field(default="", max_length=1000)
+    intolerances: str = Field(default="", max_length=1000)
+    foods_to_avoid: str = Field(default="", max_length=1000)
+    other_dietary_restrictions: str = Field(default="", max_length=1000)
     exercise_preferences: str = Field(default="", max_length=1000)
     daily_routine: str = Field(default="", max_length=1000)
     goal: WeightGoalInput
@@ -82,9 +85,12 @@ class ProfileUpdateInput(BaseModel):
     gender: str | None = Field(default=None, max_length=40)
     activity_level: Literal["sedentary", "light", "moderate", "active", "very_active"]
     dietary_preference: str = Field(min_length=2, max_length=60)
-    allergies: str = Field(default="", max_length=1000)
-    exercise_preferences: str = Field(default="", max_length=1000)
-    daily_routine: str = Field(default="", max_length=1000)
+    allergies: str | None = Field(default=None, max_length=1000)
+    intolerances: str | None = Field(default=None, max_length=1000)
+    foods_to_avoid: str | None = Field(default=None, max_length=1000)
+    other_dietary_restrictions: str | None = Field(default=None, max_length=1000)
+    exercise_preferences: str | None = Field(default=None, max_length=1000)
+    daily_routine: str | None = Field(default=None, max_length=1000)
 
     @field_validator("full_name")
     @classmethod

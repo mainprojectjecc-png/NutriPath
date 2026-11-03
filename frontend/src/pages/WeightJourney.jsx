@@ -10,10 +10,11 @@ function localDateKey() {
 
 function WeightChart({ journey }) {
   const points = useMemo(() => {
-    const records = [
-      { weight_kg: journey.goal.starting_weight_kg, measured_on: journey.goal.start_date, id: "start" },
-      ...journey.weight_history
-    ].sort((a, b) => a.measured_on.localeCompare(b.measured_on) || (a.id === "start" ? -1 : b.id === "start" ? 1 : a.id - b.id));
+    const history = journey.weight_history || [];
+    const records = (history.some(point => point.is_baseline)
+      ? [...history]
+      : [{ weight_kg: journey.goal.starting_weight_kg, measured_on: journey.goal.start_date, id: "start", is_baseline: true }, ...history]
+    ).sort((a, b) => a.measured_on.localeCompare(b.measured_on) || (a.is_baseline ? -1 : b.is_baseline ? 1 : String(a.id).localeCompare(String(b.id))));
     const min = Math.min(...records.map(point => point.weight_kg), journey.goal.target_weight_kg);
     const max = Math.max(...records.map(point => point.weight_kg), journey.goal.target_weight_kg);
     const padding = Math.max((max - min) * .18, 1);
@@ -35,7 +36,7 @@ function WeightChart({ journey }) {
       <line x1="30" x2="710" y1={points.targetY} y2={points.targetY} stroke="#e5a84c" strokeDasharray="5 5" />
       <text x="707" y={Math.max(14, points.targetY - 5)} textAnchor="end" fill="#bc8432" fontSize="10">Target {points.target} kg</text>
       {points.plotted.length > 1 && <path d={path} fill="none" stroke="#16845c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
-      {points.plotted.map((point, index) => <g key={point.id}><circle cx={point.x} cy={point.y} r={point.id === "start" ? 5 : 4} fill={point.id === "start" ? "#fff" : "#16845c"} stroke="#16845c" strokeWidth="2"><title>{point.id === "start" ? "Starting" : index === points.plotted.length - 1 ? "Current and recorded" : "Recorded"} weight: {point.weight_kg} kg on {point.measured_on}</title></circle>{index === 0 || index === points.plotted.length - 1 ? <text x={point.x} y={Math.min(points.height - 2, point.y + 19)} textAnchor={index === 0 ? "start" : "end"} fill="#73877a" fontSize="9">{point.id === "start" && points.plotted.length === 1 ? "Starting · current" : new Date(`${point.measured_on}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</text> : null}{index === points.plotted.length - 1 && point.id !== "start" ? <text x={point.x} y={Math.max(14, point.y - 8)} textAnchor="end" fill="#16845c" fontSize="9">Current {point.weight_kg} kg</text> : null}</g>)}
+      {points.plotted.map((point, index) => <g key={point.id}><circle cx={point.x} cy={point.y} r={point.is_baseline ? 5 : 4} fill={point.is_baseline ? "#fff" : "#16845c"} stroke="#16845c" strokeWidth="2"><title>{point.is_baseline ? "Starting" : index === points.plotted.length - 1 ? "Current and recorded" : "Recorded"} weight: {point.weight_kg} kg on {point.measured_on}</title></circle>{index === 0 || index === points.plotted.length - 1 ? <text x={point.x} y={Math.min(points.height - 2, point.y + 19)} textAnchor={index === 0 ? "start" : "end"} fill="#73877a" fontSize="9">{point.is_baseline && points.plotted.length === 1 ? "Starting · current" : new Date(`${point.measured_on}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</text> : null}{index === points.plotted.length - 1 && !point.is_baseline ? <text x={point.x} y={Math.max(14, point.y - 8)} textAnchor="end" fill="#16845c" fontSize="9">Current {point.weight_kg} kg</text> : null}</g>)}
     </svg>
     <div className="journey-chart-legend"><span><i /> Recorded weight</span><span><i className="journey-target-legend" /> Target</span></div>
   </div>;
@@ -61,6 +62,9 @@ function PersonalFields({ profile, user, onSaved }) {
         activity_level: values.activity_level,
         dietary_preference: values.dietary_preference,
         allergies: values.allergies || "",
+        intolerances: values.intolerances || "",
+        foods_to_avoid: values.foods_to_avoid || "",
+        other_dietary_restrictions: values.other_dietary_restrictions || "",
         exercise_preferences: values.exercise_preferences || "",
         daily_routine: values.daily_routine || ""
       });
@@ -81,8 +85,11 @@ function PersonalFields({ profile, user, onSaved }) {
       <label>Height (cm)<input type="number" min="100" max="250" step="0.1" required value={values.height_cm || ""} onChange={event => setValues({ ...values, height_cm: event.target.value })} /></label>
       <label>Gender<select value={values.gender || ""} onChange={event => setValues({ ...values, gender: event.target.value })}><option value="">Prefer not to say</option><option value="female">Female</option><option value="male">Male</option><option value="non_binary">Non-binary</option><option value="self_described">Prefer to self-describe</option></select></label>
       <label>Activity level<select value={values.activity_level || "light"} onChange={event => setValues({ ...values, activity_level: event.target.value })}><option value="sedentary">Sedentary</option><option value="light">Light</option><option value="moderate">Moderate</option><option value="active">Active</option><option value="very_active">Very active</option></select></label>
-      <label>Dietary preference<input required maxLength="60" value={values.dietary_preference || ""} onChange={event => setValues({ ...values, dietary_preference: event.target.value })} /></label>
-      <label className="journey-edit-field-full">Allergies and restrictions<textarea maxLength="1000" rows="2" value={values.allergies || ""} onChange={event => setValues({ ...values, allergies: event.target.value })} /></label>
+      <label>Dietary preference<select required value={values.dietary_preference || "No preference"} onChange={event => setValues({ ...values, dietary_preference: event.target.value })}>{!["No preference", "Vegetarian", "Vegan", "Pescatarian", "Eggetarian", "Omnivore", "Other"].includes(values.dietary_preference) && values.dietary_preference && <option value={values.dietary_preference}>{values.dietary_preference}</option>}{["No preference", "Vegetarian", "Vegan", "Pescatarian", "Eggetarian", "Omnivore", "Other"].map(choice => <option key={choice}>{choice}</option>)}</select></label>
+      <label className="journey-edit-field-full">Food allergies<textarea maxLength="1000" rows="2" value={values.allergies || ""} onChange={event => setValues({ ...values, allergies: event.target.value })} /></label>
+      <label className="journey-edit-field-full">Food intolerances<textarea maxLength="1000" rows="2" value={values.intolerances || ""} onChange={event => setValues({ ...values, intolerances: event.target.value })} /></label>
+      <label className="journey-edit-field-full">Foods to avoid<textarea maxLength="1000" rows="2" value={values.foods_to_avoid || ""} onChange={event => setValues({ ...values, foods_to_avoid: event.target.value })} /></label>
+      <label className="journey-edit-field-full">Other dietary restrictions<textarea maxLength="1000" rows="2" value={values.other_dietary_restrictions || ""} onChange={event => setValues({ ...values, other_dietary_restrictions: event.target.value })} /></label>
       <label className="journey-edit-field-full">Exercise preferences<textarea maxLength="1000" rows="2" value={values.exercise_preferences || ""} onChange={event => setValues({ ...values, exercise_preferences: event.target.value })} /></label>
       <label className="journey-edit-field-full">Daily routine<textarea maxLength="1000" rows="2" value={values.daily_routine || ""} onChange={event => setValues({ ...values, daily_routine: event.target.value })} /></label>
     </div>
@@ -230,11 +237,11 @@ export default function WeightJourney({ onUserUpdate }) {
       <div className="journey-profile-welcome"><div className="journey-profile-avatar">{journey.user.full_name.trim().charAt(0).toUpperCase()}</div><div><span>YOUR JOURNEY PROFILE</span><h2>{journey.user.full_name}</h2><p>{profile.age} years · {profile.height_cm} cm · {profile.dietary_preference}</p></div></div>
       <span className={`journey-status journey-status-${goal.status}`}><i />{statusLabel}</span>
       <div className="journey-profile-goal"><div><small>STARTING WEIGHT</small><strong>{goal.starting_weight_kg} <span>kg</span></strong></div><ChevronRight size={17} /><div><small>CURRENT WEIGHT</small><strong>{goal.current_weight_kg} <span>kg</span></strong></div><ChevronRight size={17} /><div><small>TARGET WEIGHT</small><strong>{goal.target_weight_kg} <span>kg</span></strong></div></div>
-      <div className="journey-profile-progress"><div><span>Journey progress</span><strong>{goalProgress}%</strong></div><div className="journey-profile-progress-track"><i style={{ width: `${goalProgress}%` }} /></div><small>{goal.remaining_weight_kg} kg remaining · {goal.total_weight_difference_kg} kg total goal</small></div>
+      <div className="journey-profile-progress"><div><span>Journey progress</span><strong>{goalProgress}%</strong></div><div className="journey-profile-progress-track"><i style={{ width: `${goalProgress}%` }} /></div><small>{goal.remaining_weight_kg} kg remaining · {goal.goal_weight_difference_kg} kg total goal</small></div>
     </section>
 
     <div className="journey-stat-grid">
-      <article><span className="journey-stat-icon"><TrendingDown size={18} /></span><small>Total weight change</small><strong>{goal.total_weight_difference_kg} <em>kg</em></strong><p>{goal.goal_type.replace("_", " ")}</p></article>
+      <article><span className="journey-stat-icon"><TrendingDown size={18} /></span><small>Total weight change</small><strong>{goal.actual_weight_change_kg} <em>kg</em></strong><p>{goal.goal_type.replace("_", " ")}</p></article>
       <article><span className="journey-stat-icon blue"><Scale size={18} /></span><small>Current BMI</small><strong>{goal.current_bmi ?? "Not shown"}</strong><p>{goal.current_bmi == null ? "Under 18: adult BMI not applicable" : "Screening indicator only"}</p></article>
       <article><span className="journey-stat-icon gold"><Target size={18} /></span><small>Weekly goal pace</small><strong>{goal.weekly_change_required_kg} <em>kg</em></strong><p>Estimated, not guaranteed</p></article>
       <article><span className="journey-stat-icon purple"><CalendarDays size={18} /></span><small>Estimated target</small><strong className="journey-stat-date">{new Date(`${goal.target_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</strong><p>Journey began {new Date(`${goal.start_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</p></article>
@@ -242,7 +249,7 @@ export default function WeightJourney({ onUserUpdate }) {
 
     <div className="journey-content-grid">
       <section className="journey-content-panel"><div className="journey-content-heading"><div><h2>Weight history</h2><p>Every measurement is saved as a separate entry.</p></div><span>{journey.weight_history.length} {journey.weight_history.length === 1 ? "entry" : "entries"}</span></div><WeightChart journey={journey} />
-        {journey.weight_history.length ? <div className="journey-history-list">{[...journey.weight_history].reverse().map(entry => <div className="journey-history-row" key={entry.id}><span className="journey-history-marker" /><div><strong>{entry.weight_kg} kg</strong><small>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{entry.notes ? ` · ${entry.notes}` : ""}</small></div><span>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</span><div><button className="small-button" type="button" onClick={() => editMeasurement(entry)}>Edit</button><button className="small-button" type="button" onClick={() => deleteMeasurement(entry)}>Delete</button></div></div>)}</div> : <p className="journey-no-history">No measurements yet. Your starting weight is shown on the chart.</p>}
+        {journey.weight_history.length ? <div className="journey-history-list">{[...journey.weight_history].reverse().map(entry => <div className="journey-history-row" key={entry.id}><span className="journey-history-marker" /><div><strong>{entry.weight_kg} kg</strong><small>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{entry.is_baseline ? " · Starting baseline" : entry.notes ? ` · ${entry.notes}` : ""}</small></div><span>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</span><div>{!entry.is_baseline && <><button className="small-button" type="button" onClick={() => editMeasurement(entry)}>Edit</button><button className="small-button" type="button" onClick={() => deleteMeasurement(entry)}>Delete</button></>}</div></div>)}</div> : <p className="journey-no-history">No measurements yet. Your starting weight is shown on the chart.</p>}
       </section>
       <section className="journey-content-panel journey-entry-panel"><div className="journey-content-heading"><div><h2>Log a measurement</h2><p>Add a new weight to your history.</p></div><span className="journey-entry-icon"><Plus size={18} /></span></div>
         <form className="journey-weight-form" onSubmit={addMeasurement}><label>Weight (kg)<input type="number" min="20.1" max="500" step="0.1" value={weight} onChange={event => setWeight(event.target.value)} placeholder="e.g. 72.4" required /></label><label>Measurement date<input type="date" max={localDateKey()} value={measurementDate} onChange={event => setMeasurementDate(event.target.value)} required /></label><label>Notes <span>Optional</span><textarea rows="3" maxLength="1000" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional context for this measurement" /></label><button className="journey-primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : editingEntryId ? "Update measurement" : "Save measurement"} {!saving && <Check size={16} />}</button>{editingEntryId && <button className="journey-secondary-button" type="button" onClick={() => { setEditingEntryId(null); setWeight(""); setNotes(""); setEntryMessage(""); }}>Cancel edit</button>}</form>

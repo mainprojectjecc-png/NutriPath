@@ -268,7 +268,7 @@ class JourneyApiTests(unittest.TestCase):
         journey = self.client.get("/api/journey", headers=headers)
         self.assertEqual(journey.status_code, 200, journey.text)
         data = journey.json()
-        self.assertEqual(len(data["weight_history"]), 2)
+        self.assertEqual(len(data["weight_history"]), 3)
         self.assertEqual(data["goal"]["current_weight_kg"], 79)
         self.assertGreater(data["goal"]["journey_progress_percent"], 0)
         self.assertIn("first_milestone", {item["code"] for item in data["achievements"]})
@@ -376,8 +376,11 @@ class JourneyApiTests(unittest.TestCase):
         )
         history = self.client.get("/api/weight-entries", headers=first_headers)
         self.assertEqual(history.status_code, 200, history.text)
-        self.assertEqual(len(history.json()), 1)
-        self.assertEqual(history.json()[0]["weight_kg"], 77.8)
+        self.assertEqual(len(history.json()), 2)
+        self.assertEqual(
+            next(entry["weight_kg"] for entry in history.json() if not entry["is_baseline"]),
+            77.8,
+        )
 
         self.assertEqual(self.client.post("/api/auth/logout", headers=first_headers).status_code, 204)
         relogin = self.client.post(
@@ -387,12 +390,17 @@ class JourneyApiTests(unittest.TestCase):
         self.assertEqual(relogin.status_code, 200, relogin.text)
         relogin_headers = {"Authorization": f"Bearer {relogin.json()['access_token']}"}
         persisted = self.client.get("/api/weight-entries", headers=relogin_headers)
-        self.assertEqual(len(persisted.json()), 1)
-        self.assertEqual(persisted.json()[0]["weight_kg"], 77.8)
+        self.assertEqual(len(persisted.json()), 2)
+        self.assertEqual(
+            next(entry["weight_kg"] for entry in persisted.json() if not entry["is_baseline"]),
+            77.8,
+        )
 
         deleted = self.client.delete(f"/api/weight-entries/{entry_id}", headers=relogin_headers)
         self.assertEqual(deleted.status_code, 204)
-        self.assertEqual(self.client.get("/api/weight-entries", headers=relogin_headers).json(), [])
+        remaining = self.client.get("/api/weight-entries", headers=relogin_headers).json()
+        self.assertEqual(len(remaining), 1)
+        self.assertTrue(remaining[0]["is_baseline"])
 
     def test_water_crud_daily_totals_persistence_and_ownership(self):
         first = self.register("water-crud@example.com")
@@ -463,9 +471,22 @@ class JourneyApiTests(unittest.TestCase):
         registration = self.register("planner@example.com")
         self.assertEqual(self.onboard(registration["access_token"]).status_code, 201)
         headers = {"Authorization": f"Bearer {registration['access_token']}"}
+
+        profile_update = self.client.put("/api/profile", headers=headers, json={
+            "full_name": "Test User",
+            "age": 31,
+            "height_cm": 170,
+            "gender": None,
+            "activity_level": "light",
+            "dietary_preference": "No preference",
+            "allergies": "",
+            "exercise_preferences": "",
+            "daily_routine": "",
+        })
+        self.assertEqual(profile_update.status_code, 200, profile_update.text)
+
         other = self.register("planner-other@example.com", "Other User")
         other_headers = {"Authorization": f"Bearer {other['access_token']}"}
-
         with self.session_factory() as db:
             foods = [
                 FoodItem(
@@ -569,8 +590,8 @@ class JourneyApiTests(unittest.TestCase):
             headers=headers,
             json={"StartDate": date.today().isoformat(), "Days": 1},
         )
-        self.assertEqual(response.status_code, 422)
-        self.assertIn("allergen data", response.json()["detail"])
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("verified, suitable foods", response.json()["detail"])
 
     def test_password_reset_revokes_existing_sessions(self):
         session = self.register("reset@example.com")

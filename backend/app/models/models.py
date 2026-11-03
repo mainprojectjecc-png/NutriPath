@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, Unicode, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, Unicode, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.database import Base, utc_now
@@ -43,6 +43,9 @@ class UserProfile(Base):
     activity_level: Mapped[str | None] = mapped_column("ActivityLevel", String(40))
     dietary_preference: Mapped[str | None] = mapped_column("DietaryPreference", String(60))
     allergies: Mapped[str | None] = mapped_column("Allergies", Text)
+    intolerances: Mapped[str | None] = mapped_column("Intolerances", Text)
+    foods_to_avoid: Mapped[str | None] = mapped_column("FoodsToAvoid", Text)
+    other_dietary_restrictions: Mapped[str | None] = mapped_column("OtherDietaryRestrictions", Text)
     exercise_preferences: Mapped[str | None] = mapped_column("ExercisePreferences", Text)
     daily_routine: Mapped[str | None] = mapped_column("DailyRoutine", Text)
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
@@ -85,12 +88,23 @@ class WeightGoal(Base):
 
 class WeightEntry(Base):
     __tablename__ = "weight_history"
+    __table_args__ = (
+        Index(
+            "UX_weight_history_UserBaseline",
+            "user_id",
+            "is_baseline",
+            unique=True,
+            mssql_where=text("[is_baseline] = 1"),
+            sqlite_where=text("is_baseline = 1"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("Users.UserID", ondelete="CASCADE"), index=True, nullable=False)
     weight_kg: Mapped[float] = mapped_column(Float, nullable=False)
     measured_on: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    is_baseline: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 

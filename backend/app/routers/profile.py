@@ -6,7 +6,12 @@ from app.database import get_db
 from app.models import Achievement, User, UserProfile, WeightEntry, WeightGoal
 from app.schemas.schemas import ProfileInput, ProfileUpdateInput, WeightEntryInput, WeightGoalInput
 from app.security import current_user
-from app.services.journey import current_weight_for, ensure_achievements, goal_calculations, profile_payload
+from app.services.journey import (
+    current_weight_for,
+    ensure_achievements,
+    profile_payload,
+    synchronize_baseline,
+)
 
 router = APIRouter(prefix="/api", tags=["journey"])
 
@@ -38,10 +43,22 @@ def complete_onboarding(payload: ProfileInput, db: Session = Depends(get_db), us
     profile = user.profile or UserProfile(user=user, **values)
     if user.profile:
         for key, value in values.items():
+            if (
+                key in {
+                    "allergies",
+                    "intolerances",
+                    "foods_to_avoid",
+                    "other_dietary_restrictions",
+                }
+                and not (value or "").strip()
+                and getattr(profile, key)
+            ):
+                continue
             setattr(profile, key, value)
     db.add(profile)
     db.flush()
     goal = _upsert_goal(db, profile, payload.goal)
+    synchronize_baseline(db, user, goal)
     db.commit()
     db.refresh(profile)
     ensure_achievements(db, user, profile, goal, goal.starting_weight_kg)
@@ -53,7 +70,15 @@ def update_profile(payload: ProfileUpdateInput, db: Session = Depends(get_db), u
     if not user.profile or not user.profile.goal:
         raise HTTPException(status_code=409, detail="Complete onboarding before editing your profile.")
     user.full_name = payload.full_name.strip()
-    for key, value in payload.model_dump(exclude={"full_name"}).items():
+    restriction_fields = {
+        "allergies",
+        "intolerances",
+        "foods_to_avoid",
+        "other_dietary_restrictions",
+    }
+    for key, value in payload.model_dump(exclude={"full_name"}, exclude_unset=True).items():
+        if key in restriction_fields and value is None:
+            continue
         setattr(user.profile, key, value)
     db.commit()
     return profile_payload(db, user)
@@ -64,6 +89,7 @@ def update_goal(payload: WeightGoalInput, db: Session = Depends(get_db), user: U
     if not user.profile or not user.profile.goal:
         raise HTTPException(status_code=409, detail="Complete onboarding before updating your goal.")
     goal = _upsert_goal(db, user.profile, payload)
+    synchronize_baseline(db, user, goal)
     db.commit()
     ensure_achievements(db, user, user.profile, goal, current_weight_for(db, user, goal))
     return profile_payload(db, user)
@@ -96,6 +122,13 @@ def update_weight_entry(
     )
     if entry is None:
         raise HTTPException(status_code=404, detail="Weight entry not found.")
+    if entry.is_baseline or (
+        user.profile
+        and user.profile.goal
+        and entry.measured_on == user.profile.goal.start_date
+        and entry.weight_kg == user.profile.goal.starting_weight_kg
+    ):
+        raise HTTPException(status_code=409, detail="The starting-weight baseline is managed by your goal.")
     for field, value in payload.model_dump().items():
         setattr(entry, field, value)
     db.commit()
@@ -125,6 +158,13 @@ def delete_weight_entry(
     )
     if entry is None:
         raise HTTPException(status_code=404, detail="Weight entry not found.")
+    if entry.is_baseline or (
+        user.profile
+        and user.profile.goal
+        and entry.measured_on == user.profile.goal.start_date
+        and entry.weight_kg == user.profile.goal.starting_weight_kg
+    ):
+        raise HTTPException(status_code=409, detail="The starting-weight baseline is managed by your goal.")
     db.delete(entry)
     db.commit()
     if user.profile and user.profile.goal:
@@ -151,13 +191,51 @@ def get_journey(db: Session = Depends(get_db), user: User = Depends(current_user
     goal = user.profile.goal
     current = current_weight_for(db, user, goal)
     history = list(db.scalars(select(WeightEntry).where(WeightEntry.user_id == user.id).order_by(WeightEntry.measured_on, WeightEntry.created_at, WeightEntry.id)).all())
+    history_payload = [
+        {
+            "id": entry.id,
+            "weight_kg": entry.weight_kg,
+            "measured_on": entry.measured_on,
+            "notes": entry.notes,
+            "created_at": entry.created_at,
+            "is_baseline": entry.is_baseline,
+        }
+        for entry in history
+    ]
+    if not any(item["is_baseline"] for item in history_payload):
+        matching_baseline = next(
+            (
+                item
+                for item in history_payload
+                if item["measured_on"] == goal.start_date
+                and item["weight_kg"] == goal.starting_weight_kg
+            ),
+            None,
+        )
+        if matching_baseline is None:
+            history_payload.append(
+                {
+                    "id": "start",
+                    "weight_kg": goal.starting_weight_kg,
+                    "measured_on": goal.start_date,
+                    "notes": "Starting weight baseline",
+                    "created_at": None,
+                    "is_baseline": True,
+                }
+            )
+        else:
+            matching_baseline["is_baseline"] = True
+        history_payload.sort(
+            key=lambda item: (
+                item["measured_on"],
+                item["created_at"] or "",
+                str(item["id"]),
+            )
+        )
     achievements = ensure_achievements(db, user, user.profile, goal, current)
     return {
         **payload,
-        "weight_history": [
-            {"id": entry.id, "weight_kg": entry.weight_kg, "measured_on": entry.measured_on, "notes": entry.notes, "created_at": entry.created_at}
-            for entry in history
-        ],
+        "weight_history": history_payload,
         "achievements": [
             {"code": item.code, "title": item.title, "description": item.description, "achieved_at": item.achieved_at}
             for item in achievements

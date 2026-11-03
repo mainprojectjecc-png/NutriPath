@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
 from app.models import Achievement, User, UserProfile, WeightEntry, WeightGoal
@@ -37,6 +37,8 @@ def goal_calculations(goal: WeightGoal, profile: UserProfile, current_weight: fl
         "starting_weight_kg": goal.starting_weight_kg,
         "target_weight_kg": goal.target_weight_kg,
         "current_weight_kg": current_weight,
+        "actual_weight_change_kg": round(current_weight - goal.starting_weight_kg, 1),
+        "goal_weight_difference_kg": round(difference, 1),
         "total_weight_difference_kg": round(difference, 1),
         "remaining_weight_kg": round(abs(goal.target_weight_kg - current_weight), 1),
         "weekly_change_required_kg": round(weekly_change, 2),
@@ -65,6 +67,43 @@ def current_weight_for(db: Session, user: User, goal: WeightGoal) -> float:
         .limit(1)
     )
     return latest.weight_kg if latest else goal.starting_weight_kg
+
+
+def synchronize_baseline(db: Session, user: User, goal: WeightGoal) -> None:
+    baseline = db.scalar(
+        select(WeightEntry)
+        .where(WeightEntry.user_id == user.id, WeightEntry.is_baseline == true())
+        .order_by(WeightEntry.id)
+        .limit(1)
+    )
+    if baseline is None:
+        baseline = db.scalar(
+            select(WeightEntry)
+            .where(
+                WeightEntry.user_id == user.id,
+                WeightEntry.measured_on == goal.start_date,
+                WeightEntry.weight_kg == goal.starting_weight_kg,
+            )
+            .order_by(WeightEntry.created_at, WeightEntry.id)
+            .limit(1)
+        )
+    if baseline is None:
+        db.add(
+            WeightEntry(
+                user_id=user.id,
+                weight_kg=goal.starting_weight_kg,
+                measured_on=goal.start_date,
+                notes="Starting weight baseline",
+                is_baseline=True,
+            )
+        )
+        return
+
+    baseline.weight_kg = goal.starting_weight_kg
+    baseline.measured_on = goal.start_date
+    baseline.is_baseline = True
+    if not baseline.notes:
+        baseline.notes = "Starting weight baseline"
 
 
 def ensure_achievements(db: Session, user: User, profile: UserProfile, goal: WeightGoal, current_weight: float) -> list[Achievement]:
@@ -101,6 +140,9 @@ def profile_payload(db: Session, user: User) -> dict | None:
             "activity_level": profile.activity_level,
             "dietary_preference": profile.dietary_preference,
             "allergies": profile.allergies,
+            "intolerances": profile.intolerances,
+            "foods_to_avoid": profile.foods_to_avoid,
+            "other_dietary_restrictions": profile.other_dietary_restrictions,
             "exercise_preferences": profile.exercise_preferences,
             "daily_routine": profile.daily_routine,
         },

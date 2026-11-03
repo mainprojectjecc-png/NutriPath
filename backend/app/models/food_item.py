@@ -4,6 +4,7 @@ from sqlalchemy import (
     Index, text
 )
 from app.database import Base, utc_now
+from sqlalchemy import ForeignKey, Text
 
 
 class FoodItem(Base):
@@ -30,3 +31,37 @@ class FoodItem(Base):
     ServingSize = Column(String(50))
     IsActive = Column(Boolean, nullable=False, server_default="1")
     CreatedAt = Column(DateTime, nullable=False, default=utc_now)
+
+
+class FoodSafetyMetadata(Base):
+    __tablename__ = "FoodSafetyMetadata"
+
+    FoodID = Column(
+        Integer,
+        ForeignKey("FoodItems.FoodID"),
+        primary_key=True,
+    )
+
+    Ingredients = Column(Text, nullable=True)
+    Allergens = Column(Text, nullable=True)
+    DietaryClassifications = Column(Text, nullable=True)
+    AnimalDerivedIngredients = Column(Text, nullable=True)
+    CrossContactWarnings = Column(Text, nullable=True)
+    VerificationSource = Column(Text, nullable=True)
+
+    IsVerified = Column(
+        Boolean,
+        nullable=False,
+        server_default="0",
+    )
+
+    IsVegetarian = Column(Boolean, nullable=True)
+    IsVegan = Column(Boolean, nullable=True)
+    ContainsEgg = Column(Boolean, nullable=True)
+    ContainsDairy = Column(Boolean, nullable=True)
+    ContainsHoney = Column(Boolean, nullable=True)
+    ContainsFish = Column(Boolean, nullable=True)
+    ContainsSeafood = Column(Boolean, nullable=True)
+    ContainsMeat = Column(Boolean, nullable=True)
+
+    VerifiedAt = Column(DateTime, nullable=True)

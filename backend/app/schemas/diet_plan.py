@@ -27,6 +27,7 @@ class DietPlanMealInput(BaseModel):
 
 class DietPlanCreate(BaseModel):
     PlanName: str = Field(min_length=1, max_length=100)
+    IdempotencyKey: str | None = Field(default=None, min_length=16, max_length=64)
     StartDate: date
     EndDate: date
     Meals: list[DietPlanMealInput] = Field(min_length=4, max_length=28)

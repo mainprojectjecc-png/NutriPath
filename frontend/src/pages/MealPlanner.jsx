@@ -132,7 +132,10 @@ export default function MealPlanner({ userId, setActivePage }) {
           })),
         })),
       });
-      setSavedPlans(current => [plan, ...current]);
+      setSavedPlans(current => [
+        plan,
+        ...current.filter(item => item.PlanID !== plan.PlanID),
+      ]);
       setGeneratedPlan(null);
       setPlanMessage("Meal plan saved to your account.");
     } catch (error) {
@@ -230,7 +233,8 @@ export default function MealPlanner({ userId, setActivePage }) {
               <div className="meal-info">
                 <span className="meal-type">{meal.MealType} · {new Date(`${meal.MealDate}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                 <strong>{item.Food.FoodName}</strong>
-                <small>{Number(item.Quantity)} × {item.ServingUnit} · P {Number(item.Food.Protein * item.Quantity).toFixed(1)}g · C {Number(item.Food.Carbs * item.Quantity).toFixed(1)}g · F {Number(item.Food.Fat * item.Quantity).toFixed(1)}g</small>
+                <small>{Number(item.Quantity)} × {item.ServingUnit} · P {Number(item.Food.Protein * item.Quantity).toFixed(1)}g · C {Number(item.Food.Carbs * item.Quantity).toFixed(1)}g · F {Number(item.Food.Fat * item.Quantity).toFixed(1)}g · Fiber {Number(item.Food.Fiber * item.Quantity).toFixed(1)}g</small>
+                {item.Food.SafetyStatus === "unknown" && <small>Food safety metadata is unverified.</small>}
               </div>
               <div className="meal-right">
                 <strong>{Math.round(Number(item.Food.Calories) * Number(item.Quantity))} kcal</strong>
@@ -266,7 +270,7 @@ export default function MealPlanner({ userId, setActivePage }) {
             </div>
             {expandedPlanId === plan.PlanID && <div className="meal-info">
               {plan.Meals.map(meal => meal.Items.map(item => (
-                <small key={item.MealItemID}>{meal.MealDate} · {meal.MealType}: {item.Food.FoodName} ({item.Quantity} {item.ServingUnit}; P {Number(item.Food.Protein * item.Quantity).toFixed(1)}g · C {Number(item.Food.Carbs * item.Quantity).toFixed(1)}g · F {Number(item.Food.Fat * item.Quantity).toFixed(1)}g)</small>
+                <small key={item.MealItemID}>{meal.MealDate} · {meal.MealType}: {item.Food.FoodName} ({item.Quantity} {item.ServingUnit}; P {Number(item.Food.Protein * item.Quantity).toFixed(1)}g · C {Number(item.Food.Carbs * item.Quantity).toFixed(1)}g · F {Number(item.Food.Fat * item.Quantity).toFixed(1)}g · Fiber {Number(item.Food.Fiber * item.Quantity).toFixed(1)}g) {item.Food.SafetyStatus === "unknown" ? "· Safety data unverified" : ""}</small>
               )))}
             </div>}
           </div>)}
