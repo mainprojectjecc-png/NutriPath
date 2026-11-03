@@ -37,6 +37,10 @@ database must be provisioned with the legacy API tables and the journey and
 nutrition tables/profile columns modeled by the application before using those
 routes. No real database schema or records are changed by the integration or its
 tests; the API tests use an isolated in-memory SQLite database.
+For existing SQL Server databases, run
+`docs/sql/repair_food_change_requests_mealitem_nullable.sql` against `NutriPathDB`
+before submitting food-alternative requests from nutrition logs. These requests
+use `NutritionLogID` and leave `MealItemID` null.
 Set a persistent, private `NUTRIPATH_SECRET_KEY` before production deployment
 and set `NUTRIPATH_ENVIRONMENT=production`.
 

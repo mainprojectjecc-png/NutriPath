@@ -17,6 +17,11 @@ from app.schemas.food_change_request import (
 )
 from app.schemas.food_item import FoodItemResponse
 from app.schemas.meal import MealDetails
+from app.services.food_emojis import (
+    DEFAULT_FOOD_EMOJI,
+    get_canonical_food_emoji,
+    is_corrupted_emoji,
+)
 
 
 def request_details_query(db: Session):
@@ -115,11 +120,14 @@ def serialize_request_row(row) -> FoodChangeRequestResponse:
     nutrition_details = None
 
     if nutrition_log is not None:
+        emoji = get_canonical_food_emoji(nutrition_log.food_id) or nutrition_log.emoji
+        if is_corrupted_emoji(emoji):
+            emoji = DEFAULT_FOOD_EMOJI
         nutrition_details = FoodChangeNutritionLogDetails(
             id=nutrition_log.id,
             food_id=nutrition_log.food_id,
             food_name=nutrition_log.food_name,
-            emoji=nutrition_log.emoji,
+            emoji=emoji,
             meal_type=nutrition_log.meal_type,
             quantity=nutrition_log.quantity,
             serving_label=nutrition_log.serving_label,

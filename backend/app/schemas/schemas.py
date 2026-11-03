@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
+from app.services.food_emojis import get_canonical_food_emoji
+
 
 class RegistrationInput(BaseModel):
     full_name: str = Field(min_length=2, max_length=100)
@@ -123,6 +125,15 @@ class NutritionEntryInput(BaseModel):
     def date_not_in_future(self):
         if self.date > date.today():
             raise ValueError("A meal date cannot be in the future.")
+        return self
+
+    @model_validator(mode="after")
+    def canonicalize_food_emoji(self):
+        canonical_emoji = get_canonical_food_emoji(self.food_id)
+        if canonical_emoji:
+            self.emoji = canonical_emoji
+        elif not self.emoji or "?" in self.emoji or "\ufffd" in self.emoji:
+            raise ValueError("The meal emoji must contain valid Unicode characters.")
         return self
 
 

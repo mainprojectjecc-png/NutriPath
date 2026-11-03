@@ -83,10 +83,11 @@ export default function MealPlanner({ userId, setActivePage }) {
       setFoodId("");
       setReason("");
     } catch (error) {
+      const detail = error.response?.data?.detail || error.message;
       setMessage(
-        error.response?.data?.detail ||
-        error.message ||
-        "Could not submit your request. Please try again."
+        error.status === 409 || detail === "The operation conflicts with existing data."
+          ? "An active replacement request already exists for this food."
+          : detail || "Could not submit your request. Please try again."
       );
     } finally {
       setSubmitting(false);
