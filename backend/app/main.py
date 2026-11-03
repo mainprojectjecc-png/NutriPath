@@ -1,3 +1,4 @@
+
 import os
 
 from fastapi import Depends, FastAPI
@@ -11,7 +12,6 @@ from app import models  # noqa: F401
 from app.routers import (
     auth,
     coach,
-    diet,
     diet_plans,
     food_change_requests,
     foods,
@@ -23,18 +23,18 @@ from app.routers import (
     weight_progress,
 )
 
-
-
 app = FastAPI(
     title="NutriPath API",
     description="Backend API for the NutriPath application",
     version="1.0.0",
 )
+
 origins = os.getenv(
     "NUTRIPATH_CORS_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173,"
     "http://localhost:4179,http://127.0.0.1:4179",
 ).split(",")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in origins if origin.strip()],
@@ -54,7 +54,6 @@ app.include_router(foods.router)
 app.include_router(meals.router)
 app.include_router(food_change_requests.router)
 app.include_router(coach.router)
-app.include_router(diet.router)
 
 
 @app.get("/")
@@ -73,7 +72,12 @@ def database_check(db: Session = Depends(get_db)):
         result = db.execute(text("SELECT DB_NAME()"))
         database_name = result.scalar()
     else:
-        result = db.execute(text("SELECT name FROM pragma_database_list WHERE name = 'main'"))
+        result = db.execute(
+            text(
+                "SELECT name FROM pragma_database_list "
+                "WHERE name = 'main'"
+            )
+        )
         database_name = result.scalar()
 
     return {"status": "connected", "database": database_name}
