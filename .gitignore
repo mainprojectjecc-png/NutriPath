@@ -4,9 +4,12 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-*/
 venv/
 node_modules/
 dist/
+.pytest_cache/
+.vscode/
 *.db
 *.sqlite3
 .DS_Store
