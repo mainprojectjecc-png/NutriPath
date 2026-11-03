@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 from datetime import date
 from unittest.mock import MagicMock
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from app.database import Base, get_db
 from app.main import app
 from app.models import FoodChangeRequest, FoodItem, NutritionLog, User
-from app.security import hash_password, verify_password
+from app.security import _secret, hash_password, verify_password
 from app.services.food_emojis import FOOD_EMOJI_BY_ID, FOOD_METADATA_BY_ID
 from app.services.qa_accounts import QAAccount, provision_qa_accounts
 
@@ -55,6 +56,18 @@ class JourneyApiTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+    def test_development_signing_key_persists_without_environment_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            with patch("app.security._development_env_path", env_path):
+                with patch.dict(os.environ, {"NUTRIPATH_ENVIRONMENT": "development"}, clear=True):
+                    first_secret = _secret()
+                    os.environ.pop("NUTRIPATH_SECRET_KEY")
+                    second_secret = _secret()
+
+            self.assertEqual(first_secret, second_secret)
+            self.assertTrue(env_path.is_file())
 
     def test_qa_account_provisioning_is_guarded_by_explicit_confirmation(self):
         from importlib.util import module_from_spec, spec_from_file_location

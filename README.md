@@ -24,7 +24,7 @@ py -m uvicorn app.main:app --reload
 
 The API listens on `http://localhost:8000`; interactive API documentation is
 available at `http://localhost:8000/docs`. By default, the backend connects to
-SQL Server `IMENE` and database `sampledb` using ODBC Driver 18 and Windows
+the local SQL Server database `NutriPathDB` using ODBC Driver 18 and Windows
 trusted authentication. Set `NUTRIPATH_DATABASE_URL` to use another SQLAlchemy
 database URL, such as `sqlite:///./nutripath.db` for local development.
 
@@ -52,6 +52,9 @@ before submitting food-alternative requests from nutrition logs. These requests
 use `NutritionLogID` and leave `MealItemID` null.
 Set a persistent, private `NUTRIPATH_SECRET_KEY` before production deployment
 and set `NUTRIPATH_ENVIRONMENT=production`.
+In development, if no key is configured, the backend generates one in the
+git-ignored `backend/.env` file so login sessions remain valid across server
+restarts.
 
 Password reset requires an SMTP service. Configure `NUTRIPATH_SMTP_HOST`,
 `NUTRIPATH_SMTP_PORT`, `NUTRIPATH_SMTP_FROM`, and optionally

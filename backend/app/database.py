@@ -10,7 +10,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 load_dotenv()
 
 DEFAULT_DATABASE_URL = (
-    "mssql+pyodbc://@IMENE/sampledb"
+    "mssql+pyodbc://@localhost/NutriPathDB"
     "?driver=ODBC+Driver+18+for+SQL+Server"
     "&Trusted_Connection=yes"
     "&TrustServerCertificate=yes"

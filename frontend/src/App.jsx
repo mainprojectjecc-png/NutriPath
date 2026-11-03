@@ -22,6 +22,20 @@ export default function App() {
   const [mealEntryRequest, setMealEntryRequest] = useState(0);
 
   useEffect(() => {
+    function handleAuthExpired() {
+      localStorage.removeItem(TOKEN_KEY);
+      setUser(null);
+      setAuthMode("login");
+      setStartupMessage("Your session expired. Please sign in again.");
+      setJourney("auth");
+      setActivePage("Dashboard");
+    }
+
+    window.addEventListener("nutripath:auth-expired", handleAuthExpired);
+    return () => window.removeEventListener("nutripath:auth-expired", handleAuthExpired);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const hasResetToken = new URLSearchParams(window.location.search).has("reset_token");
     const showWelcome = new URLSearchParams(window.location.search).has("welcome");
@@ -46,7 +60,9 @@ export default function App() {
         if (!active) return;
         if (error.status === 401) {
           localStorage.removeItem(TOKEN_KEY);
-          setJourney(hasResetToken ? "auth" : "welcome");
+          setAuthMode("login");
+          setStartupMessage("Your session expired. Please sign in again.");
+          setJourney("auth");
           return;
         }
         setStartupMessage(error.message);

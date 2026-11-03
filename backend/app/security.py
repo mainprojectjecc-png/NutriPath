@@ -5,7 +5,9 @@ import json
 import os
 import secrets
 from datetime import datetime, timedelta
+from pathlib import Path
 
+from dotenv import dotenv_values, set_key
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -19,7 +21,7 @@ PASSWORD_ITERATIONS = 310_000
 LEGACY_PASSWORD_ITERATIONS = 600_000
 SESSION_HOURS = 24
 bearer = HTTPBearer(auto_error=False)
-_development_secret = secrets.token_bytes(32)
+_development_env_path = Path(__file__).resolve().parents[1] / ".env"
 
 
 def _secret() -> bytes:
@@ -28,7 +30,13 @@ def _secret() -> bytes:
         return configured.encode("utf-8")
     if os.getenv("NUTRIPATH_ENVIRONMENT", "development") == "production":
         raise RuntimeError("NUTRIPATH_SECRET_KEY must be configured in production.")
-    return _development_secret
+
+    configured = dotenv_values(_development_env_path).get("NUTRIPATH_SECRET_KEY")
+    if not configured:
+        configured = secrets.token_urlsafe(48)
+        set_key(str(_development_env_path), "NUTRIPATH_SECRET_KEY", configured, quote_mode="never")
+    os.environ["NUTRIPATH_SECRET_KEY"] = configured
+    return configured.encode("utf-8")
 
 
 def hash_password(password: str) -> str:

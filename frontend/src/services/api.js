@@ -20,6 +20,9 @@ async function request(endpoint, options = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && !endpoint.startsWith("/api/auth/")) {
+      window.dispatchEvent(new Event("nutripath:auth-expired"));
+    }
     let message = `Request failed (${response.status}).`;
     try {
       const body = await response.json();
