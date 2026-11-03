@@ -14,15 +14,24 @@ import api, { TOKEN_KEY } from "./services/api";
 export default function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [user, setUser] = useState(null);
-  const [journey, setJourney] = useState("checking");
+  const [journey, setJourney] = useState(
+    new URLSearchParams(window.location.search).has("welcome") ? "welcome" : "checking"
+  );
   const [authMode, setAuthMode] = useState("login");
   const [startupMessage, setStartupMessage] = useState("");
 
   useEffect(() => {
     let active = true;
+    const hasResetToken = new URLSearchParams(window.location.search).has("reset_token");
+    const showWelcome = new URLSearchParams(window.location.search).has("welcome");
+    if (showWelcome) {
+      setJourney("welcome");
+      return () => { active = false; };
+    }
+
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      setJourney(new URLSearchParams(window.location.search).has("reset_token") ? "auth" : "welcome");
+      setJourney(hasResetToken ? "auth" : "welcome");
       return () => { active = false; };
     }
 
@@ -34,9 +43,13 @@ export default function App() {
       })
       .catch(error => {
         if (!active) return;
-        if (error.status === 401) localStorage.removeItem(TOKEN_KEY);
-        else setStartupMessage(error.message);
-        setJourney("auth");
+        if (error.status === 401) {
+          localStorage.removeItem(TOKEN_KEY);
+          setJourney(hasResetToken ? "auth" : "welcome");
+          return;
+        }
+        setStartupMessage(error.message);
+        setJourney("welcome");
       });
 
     return () => { active = false; };

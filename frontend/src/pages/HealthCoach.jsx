@@ -53,6 +53,15 @@ function formatRequestDate(value) {
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function activeRequestForMeal(requests, mealId) {
+  if (!mealId) return null;
+  return requests.find(request =>
+    (request.Status === "Pending" || request.Status === "Reviewed") &&
+    request.NutritionLogID != null &&
+    String(request.NutritionLogID) === String(mealId)
+  ) || null;
+}
+
 export default function HealthCoach({ user, setActivePage }) {
   const role = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
   const isCoach = role === "coach";
@@ -126,6 +135,11 @@ export default function HealthCoach({ user, setActivePage }) {
       return;
     }
 
+    if (selectedMealRequest) {
+      setMessage("A request for this logged meal is already active. Follow its status under Requests & recommendations.");
+      return;
+    }
+
     try {
       setSubmitting(true);
       await createFoodReplacementRequest(
@@ -139,7 +153,17 @@ export default function HealthCoach({ user, setActivePage }) {
       setReason("");
       await loadData();
     } catch (requestError) {
-      setError(requestError.message || "Request failed.");
+      const detail = requestError.response?.data?.detail || requestError.message || "Request failed.";
+      if (requestError.status === 409) {
+        setMessage(
+          detail.toLowerCase().includes("active replacement request already exists")
+            ? "A request for this logged meal is already active. Follow its status under Requests & recommendations."
+            : "This request conflicts with the current data. Refresh your requests or choose another meal."
+        );
+        await loadData();
+      } else {
+        setError(detail);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -218,6 +242,12 @@ export default function HealthCoach({ user, setActivePage }) {
   const suggestionsCount = requests.filter(
     request => request.Suggestion?.Status === "Pending"
   ).length;
+  const selectedMealRequest = activeRequestForMeal(requests, selectedMealId);
+
+  function clearRequestFeedback() {
+    setError("");
+    setMessage("");
+  }
 
   if (!user) {
     return <p className="form-message" role="alert">Sign in to open your Health Coach workspace.</p>;
@@ -343,22 +373,37 @@ export default function HealthCoach({ user, setActivePage }) {
               <select
                 id="replacement-meal"
                 value={selectedMealId}
-                onChange={e => setSelectedMealId(e.target.value)}
+                onChange={e => {
+                  setSelectedMealId(e.target.value);
+                  clearRequestFeedback();
+                }}
                 required
               >
                 <option value="">Choose a meal from your journal</option>
-                {meals.map(meal => (
-                  <option key={meal.id} value={meal.id}>
-                    {meal.foodName} - {meal.mealType} ({meal.date})
-                  </option>
-                ))}
+                {meals.map(meal => {
+                  const activeRequest = activeRequestForMeal(requests, meal.id);
+                  return (
+                    <option key={meal.id} value={meal.id} disabled={Boolean(activeRequest)}>
+                      {meal.foodName} - {meal.mealType} ({meal.date})
+                      {activeRequest ? ` · Request ${requestStatus(activeRequest).toLowerCase()}` : ""}
+                    </option>
+                  );
+                })}
               </select>
+              {selectedMealRequest && (
+                <p className="coach-request-notice" role="status">
+                  There is already an active request for this meal. You can follow its progress in Requests & recommendations below.
+                </p>
+              )}
 
               <label htmlFor="replacement-reason">What would you like to change?</label>
               <select
                 id="replacement-reason"
                 value={reason}
-                onChange={e => setReason(e.target.value)}
+                onChange={e => {
+                  setReason(e.target.value);
+                  clearRequestFeedback();
+                }}
                 required
               >
                 <option value="">Choose what best describes it</option>
@@ -372,7 +417,10 @@ export default function HealthCoach({ user, setActivePage }) {
               <select
                 id="requested-food"
                 value={requestedFoodId}
-                onChange={e => setRequestedFoodId(e.target.value)}
+                onChange={e => {
+                  setRequestedFoodId(e.target.value);
+                  clearRequestFeedback();
+                }}
                 disabled={foods.length === 0}
               >
                 <option value="">I’m open to a recommendation</option>
@@ -389,7 +437,7 @@ export default function HealthCoach({ user, setActivePage }) {
               <button
                 className="primary-button"
                 type="submit"
-                disabled={submitting || meals.length === 0}
+                disabled={submitting || meals.length === 0 || Boolean(selectedMealRequest)}
               >
                 <Send size={16} />
                 {submitting ? "Sending your request…" : "Send request"}
