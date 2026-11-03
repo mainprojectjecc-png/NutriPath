@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models  # noqa: F401
+
 from app.routers import (
     auth,
     coach,
+    diet,
     diet_plans,
     food_change_requests,
     foods,
@@ -20,6 +22,7 @@ from app.routers import (
     users,
     weight_progress,
 )
+
 
 
 app = FastAPI(
@@ -50,6 +53,7 @@ app.include_router(foods.router)
 app.include_router(meals.router)
 app.include_router(food_change_requests.router)
 app.include_router(coach.router)
+app.include_router(diet.router)
 
 
 @app.get("/")

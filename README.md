@@ -14,6 +14,7 @@ Use two PowerShell terminals from the repository root.
 
 ```powershell
 Set-Location backend
+$env:PYTHONPATH = ".."
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 py -m pip install -r requirements.txt
