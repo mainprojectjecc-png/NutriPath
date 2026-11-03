@@ -19,36 +19,39 @@ const menu = [
 ];
 
 export default function Sidebar({ activePage, setActivePage, onLogout, user }) {
+  const firstName = user?.full_name?.trim().split(/\s+/)[0];
+
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Main sidebar">
       <div className="brand">
-        <div className="brand-icon"><Leaf size={26} /></div>
+        <div className="brand-icon"><Leaf size={23} strokeWidth={2.2} /></div>
         <div>
           <h2>NutriPath</h2>
-          <span>HEALTHIER EVERY DAY</span>
+          <span>FOOD · FITNESS · WELLBEING</span>
         </div>
       </div>
 
-      <p className="side-label">MAIN MENU</p>
+      <p className="side-label">YOUR ROUTINE</p>
 
-      <nav className="side-menu">
+      <nav className="side-menu" aria-label="Main navigation">
         {menu.map(({ name, icon: Icon }) => (
           <button
             key={name}
             className={`nav-item ${activePage === name ? "active" : ""}`}
+            aria-current={activePage === name ? "page" : undefined}
             onClick={() => setActivePage(name)}
           >
-            <Icon size={19} />
+            <Icon size={18} strokeWidth={activePage === name ? 2.2 : 1.8} />
             <span>{name}</span>
           </button>
         ))}
       </nav>
 
       <div className="sidebar-bottom">
-        <p className="side-label">PREFERENCES</p>
+        <p className="side-label">ACCOUNT</p>
         <button className="nav-item" onClick={() => setActivePage("Weight Journey")}>
           <CircleUserRound size={19} />
-          My profile
+          My progress
         </button>
         <button className="nav-item" onClick={onLogout}>
           <LogOut size={19} />
@@ -56,9 +59,10 @@ export default function Sidebar({ activePage, setActivePage, onLogout, user }) {
         </button>
 
         <div className="sidebar-tip">
-          <Leaf size={23} />
-          <h4>{user?.full_name ? `You’ve got this, ${user.full_name.split(" ")[0]}!` : "Small steps, big changes!"}</h4>
-          <p>Your progress is personal. Keep taking it one day at a time.</p>
+          <span className="sidebar-tip-icon"><Leaf size={16} /></span>
+          <span className="sidebar-tip-label">A NOTE FOR TODAY</span>
+          <h4>{firstName ? `You’ve got this, ${firstName}.` : "Small steps. Strong habits."}</h4>
+          <p>Progress comes from showing up, not from being perfect.</p>
         </div>
       </div>
     </aside>

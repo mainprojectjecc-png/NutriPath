@@ -19,7 +19,7 @@ export default function Layout({
       />
 
       <main className="main-area">
-        <Topbar user={user} />
+        <Topbar user={user} activePage={activePage} />
         <div className="page-content">
           {children}
           <footer className="footer">
