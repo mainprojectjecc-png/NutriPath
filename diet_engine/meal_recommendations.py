@@ -8,7 +8,7 @@ MEALS = [
     {
         "name": "Oats with banana",
         "type": "breakfast",
-        "diet_types": ["vegetarian", "vegan", "eggetarian", "non_vegetarian"],
+        "diet_types": ["vegetarian", "eggetarian", "non_vegetarian"],
         "allergens": ["dairy"],
         "ingredients": ["oats", "banana", "milk"],
     },
