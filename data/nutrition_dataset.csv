@@ -1,0 +1,31 @@
+food_name,category,serving_size_g,calories_kcal,protein_g,carbs_g,fat_g,diet_types,allergens
+Idli,Breakfast,100,130,3.5,28,0.5,vegetarian|vegan,
+Dosa,Breakfast,100,168,4,28,4,vegetarian|vegan,
+Appam,Breakfast,100,120,2,25,1,vegetarian|vegan,
+Puttu,Breakfast,100,170,3,36,1,vegetarian|vegan,
+Upma,Breakfast,100,150,4,25,4,vegetarian,
+Oats porridge,Breakfast,100,110,4,18,2,vegetarian|vegan,
+Chapati,Main course,100,297,9,55,4,vegetarian|vegan,gluten
+Cooked rice,Main course,100,130,2.7,28,0.3,vegetarian|vegan,
+Brown rice,Main course,100,123,2.7,26,1,vegetarian|vegan,
+Vegetable biryani,Main course,100,150,3,25,4,vegetarian,
+Curd,Side dish,100,98,3.5,4.7,5,vegetarian,dairy
+Sambar,Side dish,100,65,3,9,2,vegetarian|vegan,
+Rasam,Side dish,100,35,1.5,5,1,vegetarian|vegan,
+Avial,Side dish,100,110,2.5,10,7,vegetarian,
+Thoran,Side dish,100,100,2.5,8,6,vegetarian|vegan,
+Dal,Side dish,100,116,9,20,0.4,vegetarian|vegan,
+Grilled chicken,Protein,100,165,31,0,3.6,non_vegetarian,
+Boiled egg,Protein,100,155,13,1.1,11,eggetarian|non_vegetarian,egg
+Paneer,Protein,100,265,18,3.5,20,vegetarian,dairy
+Tofu,Protein,100,76,8,1.9,4.8,vegetarian|vegan,soy
+Banana,Fruit,100,89,1.1,23,0.3,vegetarian|vegan,
+Apple,Fruit,100,52,0.3,14,0.2,vegetarian|vegan,
+Orange,Fruit,100,47,0.9,12,0.1,vegetarian|vegan,
+Papaya,Fruit,100,43,0.5,11,0.3,vegetarian|vegan,
+Almonds,Nuts,100,579,21,22,50,vegetarian|vegan,nuts
+Peanuts,Nuts,100,567,26,16,49,vegetarian|vegan,peanuts
+Boiled chickpeas,Protein,100,164,8.9,27,2.6,vegetarian|vegan,
+Sweet potato,Vegetable,100,86,1.6,20,0.1,vegetarian|vegan,
+Broccoli,Vegetable,100,34,2.8,7,0.4,vegetarian|vegan,
+Cucumber,Vegetable,100,15,0.7,3.6,0.1,vegetarian|vegan,

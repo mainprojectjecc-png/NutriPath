@@ -10,6 +10,11 @@ from diet_engine import (
     calculate_daily_calories,
 )
 
+from diet_engine.nutrition_data import (
+    load_food_data,
+    get_food_nutrition,
+)
+
 
 class TestDietEngine(unittest.TestCase):
 
@@ -23,44 +28,27 @@ class TestDietEngine(unittest.TestCase):
             calculate_weight_change(0, 65)
 
     def test_monthly_journey(self):
-        result = generate_monthly_journey(
-            75, 65, "2026-11-01", 3
-        )
+        result = generate_monthly_journey(75, 65, "2026-11-01", 3)
         self.assertEqual(len(result["milestones"]), 4)
-        self.assertEqual(
-            result["milestones"][-1]["target_weight_kg"], 65
-        )
+        self.assertEqual(result["milestones"][-1]["target_weight_kg"], 65)
 
     def test_daily_meals(self):
-        preferences = {
-            "diet_type": "vegetarian",
-            "allergies": []
-        }
-        result = generate_daily_meals(
-            preferences, "2026-11-01"
-        )
+        preferences = {"diet_type": "vegetarian", "allergies": []}
+        result = generate_daily_meals(preferences, "2026-11-01")
         self.assertIn("breakfast", result["meals"])
         self.assertIn("lunch", result["meals"])
 
     def test_invalid_diet(self):
-        preferences = {
-            "diet_type": "unknown",
-            "allergies": []
-        }
+        preferences = {"diet_type": "unknown", "allergies": []}
         with self.assertRaises(ValueError):
             generate_daily_meals(preferences, "2026-11-01")
 
     def test_food_replacement(self):
-        preferences = {
-            "diet_type": "vegetarian",
-            "allergies": []
-        }
-        result = suggest_food_replacements(
-            "white rice", preferences
-        )
+        preferences = {"diet_type": "vegetarian", "allergies": []}
+        result = suggest_food_replacements("white rice", preferences)
         self.assertTrue(len(result) > 0)
         self.assertEqual(result[0]["name"], "Brown rice")
-        
+
     def test_bmi_calculation(self):
         result = calculate_bmi(70, 175)
         self.assertEqual(result["bmi"], 22.86)
@@ -75,7 +63,6 @@ class TestDietEngine(unittest.TestCase):
     def test_invalid_bmi_input(self):
         with self.assertRaises(ValueError):
             calculate_bmi(0, 175)
-
         with self.assertRaises(ValueError):
             calculate_bmi(70, 0)
 
@@ -92,10 +79,26 @@ class TestDietEngine(unittest.TestCase):
     def test_invalid_calorie_input(self):
         with self.assertRaises(ValueError):
             calculate_daily_calories(0, 175, 25, "male")
-
         with self.assertRaises(ValueError):
             calculate_daily_calories(70, 175, 25, "unknown")
-    
+
+    def test_load_food_data(self):
+        foods = load_food_data()
+        self.assertEqual(len(foods), 30)
+
+    def test_get_food_nutrition(self):
+        food = get_food_nutrition("Idli")
+        self.assertIsNotNone(food)
+        self.assertEqual(food["food_name"], "Idli")
+
+    def test_unknown_food(self):
+        food = get_food_nutrition("Pizza")
+        self.assertIsNone(food)
+
+    def test_food_nutrition_values(self):
+        food = get_food_nutrition("Idli")
+        self.assertEqual(float(food["calories_kcal"]), 130)
+        self.assertEqual(float(food["protein_g"]), 3.5)
 
 
 if __name__ == "__main__":
