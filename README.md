@@ -24,7 +24,7 @@ py -m uvicorn app.main:app --reload
 
 The API listens on `http://localhost:8000`; interactive API documentation is
 available at `http://localhost:8000/docs`. By default, the backend connects to
-the existing local SQL Server `NutriPathDB` using ODBC Driver 18 and Windows
+SQL Server `IMENE` and database `sampledb` using ODBC Driver 18 and Windows
 trusted authentication. Set `NUTRIPATH_DATABASE_URL` to use another SQLAlchemy
 database URL, such as `sqlite:///./nutripath.db` for local development.
 

@@ -188,6 +188,7 @@ def generate(client, headers, days=1):
     ("preference", "metadata", "expected_status"),
     [
         ("No preference", False, 200),
+        ("Balanced", False, 200),
         ("Vegetarian", True, 200),
         ("Vegan", True, 200),
         ("Eggetarian", True, 200),

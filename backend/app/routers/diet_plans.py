@@ -190,6 +190,8 @@ def generate_diet_plan(
     preference = (
         profile.dietary_preference or "No preference"
     ).strip().casefold()
+    if preference == "balanced":
+        preference = "no preference"
 
     supported_preferences = {
         "no preference",
