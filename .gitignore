@@ -13,3 +13,4 @@ dist/
 Thumbs.db
 backend/.env
 backend/.venv/
+frontend/node_modules/
