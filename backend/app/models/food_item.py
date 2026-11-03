@@ -5,6 +5,7 @@ class FoodItem(Base):
     __tablename__ = "FoodItems"
 
     FoodID = Column(Integer, primary_key=True, index=True)
+    CatalogID = Column(String(80), unique=True, nullable=True)
     FoodName = Column(String(150), nullable=False)
     Category = Column(String(50))
     Calories = Column(Numeric(8, 2), nullable=False)

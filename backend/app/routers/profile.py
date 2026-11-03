@@ -81,6 +81,63 @@ def add_weight_entry(payload: WeightEntryInput, db: Session = Depends(get_db), u
     return entry
 
 
+@router.put("/weight-entries/{entry_id}")
+def update_weight_entry(
+    entry_id: int,
+    payload: WeightEntryInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    entry = db.scalar(
+        select(WeightEntry).where(
+            WeightEntry.id == entry_id,
+            WeightEntry.user_id == user.id,
+        )
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Weight entry not found.")
+    for field, value in payload.model_dump().items():
+        setattr(entry, field, value)
+    db.commit()
+    db.refresh(entry)
+    if user.profile and user.profile.goal:
+        ensure_achievements(
+            db,
+            user,
+            user.profile,
+            user.profile.goal,
+            current_weight_for(db, user, user.profile.goal),
+        )
+    return entry
+
+
+@router.delete("/weight-entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_weight_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    entry = db.scalar(
+        select(WeightEntry).where(
+            WeightEntry.id == entry_id,
+            WeightEntry.user_id == user.id,
+        )
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Weight entry not found.")
+    db.delete(entry)
+    db.commit()
+    if user.profile and user.profile.goal:
+        ensure_achievements(
+            db,
+            user,
+            user.profile,
+            user.profile.goal,
+            current_weight_for(db, user, user.profile.goal),
+        )
+    return None
+
+
 @router.get("/weight-entries")
 def get_weight_entries(db: Session = Depends(get_db), user: User = Depends(current_user)):
     return list(db.scalars(select(WeightEntry).where(WeightEntry.user_id == user.id).order_by(WeightEntry.measured_on, WeightEntry.created_at, WeightEntry.id)).all())

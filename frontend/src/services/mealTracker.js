@@ -13,15 +13,7 @@ function userStorageKey(userId) {
 
 export function loadMealTrackerData(userId = "guest") {
   const scopedKey = userStorageKey(userId);
-  let saved = window.localStorage.getItem(scopedKey);
-  if (!saved && userId !== "guest" && !window.localStorage.getItem(`${STORAGE_KEY}.migration-complete`)) {
-    const previousData = window.localStorage.getItem(STORAGE_KEY);
-    window.localStorage.setItem(`${STORAGE_KEY}.migration-complete`, "true");
-    if (previousData) {
-      saved = previousData;
-      window.localStorage.setItem(scopedKey, previousData);
-    }
-  }
+  const saved = window.localStorage.getItem(scopedKey);
   if (!saved) return initialState;
 
   const parsed = JSON.parse(saved);

@@ -72,9 +72,52 @@ export function addWaterEntry(date, amount) {
   return api.post("/api/nutrition/water", { date, amount_ml: amount });
 }
 
+export function updateWaterEntry(id, date, amount) {
+  return api.put(`/api/nutrition/water/${id}`, { date, amount_ml: amount });
+}
+
+export function removeWaterEntry(id) {
+  return api.delete(`/api/nutrition/water/${id}`);
+}
+
 export function saveNutritionSettings(data) {
   return api.put("/api/nutrition/settings", {
     calorie_goal: data.calorieGoal,
     water_goal: data.waterGoal
+  });
+}
+
+
+export function getFoodReplacementRequests() {
+  return api.get("/api/v1/food-change-requests/");
+}
+
+export function getActiveFoods() {
+  return api.get("/api/v1/foods/");
+}
+
+export function createFoodReplacementRequest(nutritionLogId, reason) {
+  return api.post("/api/v1/food-change-requests/", {
+    NutritionLogID: nutritionLogId,
+    Reason: reason,
+  });
+}
+
+export function acceptFoodReplacementSuggestion(requestId) {
+  return api.post(`/api/v1/food-change-requests/${requestId}/accept`, {});
+}
+
+export function rejectFoodReplacementSuggestion(requestId) {
+  return api.post(`/api/v1/food-change-requests/${requestId}/reject`, {});
+}
+
+export function getCoachRequests() {
+  return api.get("/api/v1/coach/requests");
+}
+
+export function submitCoachSuggestion(requestId, suggestedFoodId, message = "") {
+  return api.post(`/api/v1/coach/requests/${requestId}/suggestion`, {
+    SuggestedFoodID: suggestedFoodId,
+    Message: message,
   });
 }

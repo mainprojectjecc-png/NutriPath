@@ -3,6 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, ChevronRight, Flag, Pencil, Plus, Scale, ShieldCheck, Target, TrendingDown, Trophy } from "lucide-react";
 import api from "../services/api";
 
+function localDateKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function WeightChart({ journey }) {
   const points = useMemo(() => {
     const records = [
@@ -131,11 +136,12 @@ export default function WeightJourney({ onUserUpdate }) {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [weight, setWeight] = useState("");
-  const [measurementDate, setMeasurementDate] = useState(new Date().toISOString().slice(0, 10));
+  const [measurementDate, setMeasurementDate] = useState(localDateKey());
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [entryMessage, setEntryMessage] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState(null);
 
   async function refresh() {
     setLoading(true);
@@ -163,15 +169,46 @@ export default function WeightJourney({ onUserUpdate }) {
     setSaving(true);
     setEntryMessage("");
     try {
-      await api.post("/api/weight-entries", { weight_kg: parsed, measured_on: measurementDate, notes: notes.trim() });
+      const payload = { weight_kg: parsed, measured_on: measurementDate, notes: notes.trim() };
+      if (editingEntryId) {
+        await api.put(`/api/weight-entries/${editingEntryId}`, payload);
+      } else {
+        await api.post("/api/weight-entries", payload);
+      }
       setWeight("");
       setNotes("");
-      setEntryMessage("Measurement saved to your history.");
+      setEditingEntryId(null);
+      setEntryMessage(editingEntryId ? "Measurement updated." : "Measurement saved to your history.");
       await refresh();
     } catch (error) {
       setEntryMessage(error.message || "Your measurement could not be saved.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function editMeasurement(entry) {
+    setEditingEntryId(entry.id);
+    setWeight(String(entry.weight_kg));
+    setMeasurementDate(entry.measured_on);
+    setNotes(entry.notes || "");
+    setEntryMessage("");
+  }
+
+  async function deleteMeasurement(entry) {
+    if (!window.confirm("Delete this weight measurement?")) return;
+    setEntryMessage("");
+    try {
+      await api.delete(`/api/weight-entries/${entry.id}`);
+      if (editingEntryId === entry.id) {
+        setEditingEntryId(null);
+        setWeight("");
+        setNotes("");
+      }
+      setEntryMessage("Measurement deleted.");
+      await refresh();
+    } catch (error) {
+      setEntryMessage(error.message || "Your measurement could not be deleted.");
     }
   }
 
@@ -205,10 +242,10 @@ export default function WeightJourney({ onUserUpdate }) {
 
     <div className="journey-content-grid">
       <section className="journey-content-panel"><div className="journey-content-heading"><div><h2>Weight history</h2><p>Every measurement is saved as a separate entry.</p></div><span>{journey.weight_history.length} {journey.weight_history.length === 1 ? "entry" : "entries"}</span></div><WeightChart journey={journey} />
-        {journey.weight_history.length ? <div className="journey-history-list">{[...journey.weight_history].reverse().map(entry => <div className="journey-history-row" key={entry.id}><span className="journey-history-marker" /><div><strong>{entry.weight_kg} kg</strong><small>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{entry.notes ? ` · ${entry.notes}` : ""}</small></div><span>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</span></div>)}</div> : <p className="journey-no-history">No measurements yet. Your starting weight is shown on the chart.</p>}
+        {journey.weight_history.length ? <div className="journey-history-list">{[...journey.weight_history].reverse().map(entry => <div className="journey-history-row" key={entry.id}><span className="journey-history-marker" /><div><strong>{entry.weight_kg} kg</strong><small>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{entry.notes ? ` · ${entry.notes}` : ""}</small></div><span>{new Date(`${entry.measured_on}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</span><div><button className="small-button" type="button" onClick={() => editMeasurement(entry)}>Edit</button><button className="small-button" type="button" onClick={() => deleteMeasurement(entry)}>Delete</button></div></div>)}</div> : <p className="journey-no-history">No measurements yet. Your starting weight is shown on the chart.</p>}
       </section>
       <section className="journey-content-panel journey-entry-panel"><div className="journey-content-heading"><div><h2>Log a measurement</h2><p>Add a new weight to your history.</p></div><span className="journey-entry-icon"><Plus size={18} /></span></div>
-        <form className="journey-weight-form" onSubmit={addMeasurement}><label>Weight (kg)<input type="number" min="20.1" max="500" step="0.1" value={weight} onChange={event => setWeight(event.target.value)} placeholder="e.g. 72.4" required /></label><label>Measurement date<input type="date" max={new Date().toISOString().slice(0, 10)} value={measurementDate} onChange={event => setMeasurementDate(event.target.value)} required /></label><label>Notes <span>Optional</span><textarea rows="3" maxLength="1000" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional context for this measurement" /></label><button className="journey-primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save measurement"} {!saving && <Check size={16} />}</button></form>
+        <form className="journey-weight-form" onSubmit={addMeasurement}><label>Weight (kg)<input type="number" min="20.1" max="500" step="0.1" value={weight} onChange={event => setWeight(event.target.value)} placeholder="e.g. 72.4" required /></label><label>Measurement date<input type="date" max={localDateKey()} value={measurementDate} onChange={event => setMeasurementDate(event.target.value)} required /></label><label>Notes <span>Optional</span><textarea rows="3" maxLength="1000" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional context for this measurement" /></label><button className="journey-primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : editingEntryId ? "Update measurement" : "Save measurement"} {!saving && <Check size={16} />}</button>{editingEntryId && <button className="journey-secondary-button" type="button" onClick={() => { setEditingEntryId(null); setWeight(""); setNotes(""); setEntryMessage(""); }}>Cancel edit</button>}</form>
         {entryMessage && <p className="journey-form-message" role="status">{entryMessage}</p>}
         <p className="journey-entry-note"><ShieldCheck size={14} /> Your measurements are private to your account.</p>
       </section>

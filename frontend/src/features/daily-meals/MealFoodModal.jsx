@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
-import { foodCatalog } from "./foodCatalog";
 
 function getServingOptions(food) {
   return [
@@ -11,7 +10,7 @@ function getServingOptions(food) {
   ].filter((option, index, options) => options.findIndex(item => item.label === option.label) === index);
 }
 
-export default function MealFoodModal({ mealType, onClose, onAdd }) {
+export default function MealFoodModal({ mealType, foods, catalogError, onClose, onAdd }) {
   const [query, setQuery] = useState("");
   const [selectedFood, setSelectedFood] = useState(null);
   const [servingLabel, setServingLabel] = useState("");
@@ -20,11 +19,11 @@ export default function MealFoodModal({ mealType, onClose, onAdd }) {
   const [saving, setSaving] = useState(false);
   const filteredFoods = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
-    return foodCatalog.filter(food =>
+    return foods.filter(food =>
       (!search || food.name.toLocaleLowerCase().includes(search)) &&
       (food.category === mealType || !search)
     );
-  }, [mealType, query]);
+  }, [foods, mealType, query]);
   const servingOptions = selectedFood ? getServingOptions(selectedFood) : [];
   const selectedServing = servingOptions.find(option => option.label === servingLabel) || servingOptions[0];
   const servings = Number(quantity);
@@ -91,6 +90,7 @@ export default function MealFoodModal({ mealType, onClose, onAdd }) {
               <Search size={18} />
               <input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Indian foods..." aria-label="Search foods" />
             </label>
+            {catalogError && <p className="tracker-form-error" role="alert">{catalogError}</p>}
             <div className="tracker-food-results">
               {filteredFoods.length ? filteredFoods.map(food => (
                 <button type="button" className="tracker-food-option" key={food.id} onClick={() => chooseFood(food)}>

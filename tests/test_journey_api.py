@@ -1,6 +1,8 @@
+import os
 import sys
 import unittest
 from datetime import date
+from unittest.mock import MagicMock
 from unittest.mock import patch
 from pathlib import Path
 
@@ -13,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import User
+from app.models import FoodChangeRequest, FoodItem, NutritionLog, User
+from app.security import hash_password, verify_password
+from app.services.qa_accounts import QAAccount, provision_qa_accounts
 
 
 class JourneyApiTests(unittest.TestCase):
@@ -50,6 +54,126 @@ class JourneyApiTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+    def test_qa_account_provisioning_is_guarded_by_explicit_confirmation(self):
+        from importlib.util import module_from_spec, spec_from_file_location
+
+        script_path = Path(__file__).resolve().parents[1] / "backend" / "scripts" / "provision_qa_accounts.py"
+        spec = spec_from_file_location("provision_qa_accounts", script_path)
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.dict(
+            "os.environ",
+            {
+                "NUTRIPATH_ENVIRONMENT": "production",
+                "NUTRIPATH_ENABLE_QA_ACCOUNT_PROVISIONING": "I_CONFIRM_QA_ACCOUNT_CREATION",
+            },
+            clear=True,
+        ):
+            self.assertEqual(module.main(), 2)
+
+    def test_qa_account_provisioning_rejects_non_sql_server_targets(self):
+        from importlib.util import module_from_spec, spec_from_file_location
+
+        script_path = Path(__file__).resolve().parents[1] / "backend" / "scripts" / "provision_qa_accounts.py"
+        spec = spec_from_file_location("provision_qa_accounts_target_guard", script_path)
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        db = MagicMock()
+        db.get_bind.return_value.dialect.name = "sqlite"
+        self.assertIsNone(module._verified_qa_target(db))
+        db.execute.assert_not_called()
+
+        db.get_bind.return_value.dialect.name = "mssql"
+        db.execute.return_value.one.return_value = ("IMENE", "NutriPathDB")
+        self.assertIsNone(module._verified_qa_target(db))
+
+        db.execute.return_value.one.return_value = ("IMENE", "sampledb")
+        self.assertEqual(module._verified_qa_target(db), ("IMENE", "sampledb"))
+
+    def test_qa_provisioner_defaults_to_fixed_sql_server_target(self):
+        from importlib.util import module_from_spec, spec_from_file_location
+        from sqlalchemy.engine import make_url
+
+        script_path = Path(__file__).resolve().parents[1] / "backend" / "scripts" / "provision_qa_accounts.py"
+        spec = spec_from_file_location("provision_qa_accounts_url", script_path)
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.dict("os.environ", {}, clear=True):
+            module._configure_qa_database_url()
+            url = make_url(os.environ["NUTRIPATH_DATABASE_URL"])
+            odbc_string = url.query["odbc_connect"]
+            self.assertIn("SERVER=lpc:IMENE", odbc_string)
+            self.assertIn("DATABASE=sampledb", odbc_string)
+            self.assertIn("DRIVER={ODBC Driver 18 for SQL Server}", odbc_string)
+
+        configured_url = "mssql+pyodbc://@localhost/NutriPathDB"
+        with patch.dict("os.environ", {"NUTRIPATH_DATABASE_URL": configured_url}, clear=True):
+            module._configure_qa_database_url()
+            self.assertEqual(os.environ["NUTRIPATH_DATABASE_URL"], configured_url)
+
+    def test_qa_account_provisioning_creates_only_missing_roles(self):
+        original_hash = hash_password("existing-user-password")
+        with self.session_factory() as db:
+            db.add(
+                User(
+                    full_name="Existing Account",
+                    email="qa-user@example.com",
+                    password_hash=original_hash,
+                    role="Coach",
+                    is_active=True,
+                )
+            )
+            db.commit()
+            outcomes = provision_qa_accounts(
+                db,
+                [
+                    QAAccount(
+                        email="QA-USER@example.com",
+                        full_name="QA User",
+                        password="qa-user-password-123",
+                        role="User",
+                    ),
+                    QAAccount(
+                        email="qa-coach@example.com",
+                        full_name="QA Coach",
+                        password="qa-coach-password-123",
+                        role="Coach",
+                    ),
+                ],
+            )
+            self.assertEqual(
+                outcomes,
+                [
+                    "Existing account with a different role left unchanged.",
+                    "Created Coach QA account.",
+                ],
+            )
+            existing = db.scalar(select(User).where(User.email == "qa-user@example.com"))
+            coach = db.scalar(select(User).where(User.email == "qa-coach@example.com"))
+            self.assertEqual(existing.role, "Coach")
+            self.assertEqual(existing.password_hash, original_hash)
+            self.assertEqual(coach.role, "Coach")
+            self.assertNotEqual(coach.password_hash, "qa-coach-password-123")
+            self.assertTrue(verify_password("qa-coach-password-123", coach.password_hash))
+
+            repeated = provision_qa_accounts(
+                db,
+                [
+                    QAAccount("qa-user@example.com", "Different User", "different-password-123", "User"),
+                    QAAccount("qa-coach@example.com", "Different Coach", "different-password-123", "Coach"),
+                ],
+            )
+            self.assertEqual(
+                repeated,
+                [
+                    "Existing account with a different role left unchanged.",
+                    "Existing active Coach account left unchanged.",
+                ],
+            )
+            self.assertEqual(existing.role, "Coach")
+            self.assertEqual(existing.password_hash, original_hash)
+            self.assertEqual(coach.full_name, "QA Coach")
 
     def onboard(self, token, full_name="Test User"):
         today = date.today().isoformat()
@@ -204,6 +328,249 @@ class JourneyApiTests(unittest.TestCase):
         self.assertEqual(updated_goal.json()["goal"]["duration_weeks"], 4)
         self.assertTrue(updated_goal.json()["goal"]["unsafe_target"])
 
+    def test_weight_entry_crud_and_ownership(self):
+        first = self.register("weight-crud@example.com")
+        self.assertEqual(self.onboard(first["access_token"]).status_code, 201)
+        first_headers = {"Authorization": f"Bearer {first['access_token']}"}
+        second = self.register("weight-other@example.com", "Other User")
+        second_headers = {"Authorization": f"Bearer {second['access_token']}"}
+        payload = {
+            "weight_kg": 78.5,
+            "measured_on": date.today().isoformat(),
+            "notes": "Initial entry",
+        }
+
+        created = self.client.post("/api/weight-entries", headers=first_headers, json=payload)
+        self.assertEqual(created.status_code, 201, created.text)
+        entry_id = created.json()["id"]
+        updated_payload = {**payload, "weight_kg": 77.8, "notes": "Corrected entry"}
+        updated = self.client.put(
+            f"/api/weight-entries/{entry_id}",
+            headers=first_headers,
+            json=updated_payload,
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["weight_kg"], 77.8)
+        self.assertEqual(updated.json()["notes"], "Corrected entry")
+        future_date = date.fromordinal(date.today().toordinal() + 1).isoformat()
+        self.assertEqual(
+            self.client.put(
+                f"/api/weight-entries/{entry_id}",
+                headers=first_headers,
+                json={**updated_payload, "measured_on": future_date},
+            ).status_code,
+            422,
+        )
+        self.assertEqual(
+            self.client.put(
+                f"/api/weight-entries/{entry_id}",
+                headers=second_headers,
+                json=payload,
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/weight-entries/{entry_id}", headers=second_headers).status_code,
+            404,
+        )
+        history = self.client.get("/api/weight-entries", headers=first_headers)
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(len(history.json()), 1)
+        self.assertEqual(history.json()[0]["weight_kg"], 77.8)
+
+        self.assertEqual(self.client.post("/api/auth/logout", headers=first_headers).status_code, 204)
+        relogin = self.client.post(
+            "/api/auth/login",
+            json={"email": "weight-crud@example.com", "password": "secure-password-123"},
+        )
+        self.assertEqual(relogin.status_code, 200, relogin.text)
+        relogin_headers = {"Authorization": f"Bearer {relogin.json()['access_token']}"}
+        persisted = self.client.get("/api/weight-entries", headers=relogin_headers)
+        self.assertEqual(len(persisted.json()), 1)
+        self.assertEqual(persisted.json()[0]["weight_kg"], 77.8)
+
+        deleted = self.client.delete(f"/api/weight-entries/{entry_id}", headers=relogin_headers)
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(self.client.get("/api/weight-entries", headers=relogin_headers).json(), [])
+
+    def test_water_crud_daily_totals_persistence_and_ownership(self):
+        first = self.register("water-crud@example.com")
+        first_headers = {"Authorization": f"Bearer {first['access_token']}"}
+        second = self.register("water-other@example.com", "Other User")
+        second_headers = {"Authorization": f"Bearer {second['access_token']}"}
+        old_date = "2024-01-02"
+        today = date.today().isoformat()
+
+        created = self.client.post(
+            "/api/nutrition/water",
+            headers=first_headers,
+            json={"amount_ml": 300, "date": old_date},
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        entry_id = created.json()["id"]
+        additional = self.client.post(
+            "/api/nutrition/water",
+            headers=first_headers,
+            json={"amount_ml": 500, "date": today},
+        )
+        self.assertEqual(additional.status_code, 201, additional.text)
+
+        updated = self.client.put(
+            f"/api/nutrition/water/{entry_id}",
+            headers=first_headers,
+            json={"amount_ml": 400, "date": today},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["amount_ml"], 400)
+        self.assertEqual(updated.json()["date"], today)
+        self.assertEqual(
+            self.client.put(
+                f"/api/nutrition/water/{entry_id}",
+                headers=second_headers,
+                json={"amount_ml": 200, "date": today},
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/nutrition/water/{entry_id}", headers=second_headers).status_code,
+            404,
+        )
+
+        nutrition = self.client.get("/api/nutrition", headers=first_headers)
+        self.assertEqual(nutrition.status_code, 200, nutrition.text)
+        self.assertEqual(nutrition.json()["waterByDate"][today], 900)
+        self.assertNotIn(old_date, nutrition.json()["waterByDate"])
+        self.assertEqual(len(nutrition.json()["waterEntries"]), 2)
+
+        self.assertEqual(self.client.post("/api/auth/logout", headers=first_headers).status_code, 204)
+        relogin = self.client.post(
+            "/api/auth/login",
+            json={"email": "water-crud@example.com", "password": "secure-password-123"},
+        )
+        self.assertEqual(relogin.status_code, 200, relogin.text)
+        relogin_headers = {"Authorization": f"Bearer {relogin.json()['access_token']}"}
+        persisted = self.client.get("/api/nutrition", headers=relogin_headers)
+        self.assertEqual(persisted.json()["waterByDate"][today], 900)
+
+        deleted = self.client.delete(f"/api/nutrition/water/{entry_id}", headers=relogin_headers)
+        self.assertEqual(deleted.status_code, 204)
+        remaining = self.client.get("/api/nutrition", headers=relogin_headers)
+        self.assertEqual(remaining.json()["waterByDate"][today], 500)
+        self.assertEqual([entry["id"] for entry in remaining.json()["waterEntries"]], [additional.json()["id"]])
+
+    def test_diet_plan_generation_persistence_management_and_ownership(self):
+        registration = self.register("planner@example.com")
+        self.assertEqual(self.onboard(registration["access_token"]).status_code, 201)
+        headers = {"Authorization": f"Bearer {registration['access_token']}"}
+        other = self.register("planner-other@example.com", "Other User")
+        other_headers = {"Authorization": f"Bearer {other['access_token']}"}
+
+        with self.session_factory() as db:
+            foods = [
+                FoodItem(
+                    CatalogID=f"planner-{category.casefold()}",
+                    FoodName=f"Planner {category}",
+                    Category=category,
+                    Calories=calories,
+                    Protein=protein,
+                    Carbs=carbs,
+                    Fat=fat,
+                    Fiber=0,
+                    ServingSize="1 serving",
+                    IsActive=True,
+                )
+                for category, calories, protein, carbs, fat in (
+                    ("Breakfast", 100, 8, 12, 2),
+                    ("Lunch", 200, 12, 25, 4),
+                    ("Dinner", 250, 20, 10, 8),
+                    ("Snacks", 50, 2, 8, 1),
+                )
+            ]
+            db.add_all(foods)
+            db.commit()
+            food_ids = {food.Category: food.FoodID for food in foods}
+
+        generated = self.client.post(
+            "/api/v1/diet-plans/generate",
+            headers=headers,
+            json={"StartDate": date.today().isoformat(), "Days": 2},
+        )
+        self.assertEqual(generated.status_code, 200, generated.text)
+        generated_plan = generated.json()
+        self.assertEqual(generated_plan["GoalType"], "weight_loss")
+        self.assertEqual(len(generated_plan["Meals"]), 8)
+        for meal in generated_plan["Meals"]:
+            self.assertEqual(len(meal["Items"]), 1)
+            item = meal["Items"][0]
+            self.assertIn(item["FoodID"], food_ids.values())
+            self.assertEqual(float(item["Food"]["Calories"]), {
+                food_ids["Breakfast"]: 100,
+                food_ids["Lunch"]: 200,
+                food_ids["Dinner"]: 250,
+                food_ids["Snacks"]: 50,
+            }[item["FoodID"]])
+
+        created = self.client.post(
+            "/api/v1/diet-plans/",
+            headers=headers,
+            json=generated_plan,
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        plan_id = created.json()["PlanID"]
+        self.assertEqual(len(created.json()["Meals"]), 8)
+        self.assertEqual(
+            created.json()["Meals"][0]["Items"][0]["Food"]["FoodID"],
+            created.json()["Meals"][0]["Items"][0]["FoodID"],
+        )
+
+        listed = self.client.get("/api/v1/diet-plans/", headers=headers)
+        self.assertEqual(listed.status_code, 200, listed.text)
+        self.assertEqual([plan["PlanID"] for plan in listed.json()], [plan_id])
+        updated = self.client.put(
+            f"/api/v1/diet-plans/{plan_id}",
+            headers=headers,
+            json={"PlanName": "Saved vegetarian plan", "Status": "Paused"},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["PlanName"], "Saved vegetarian plan")
+        self.assertEqual(updated.json()["Status"], "Paused")
+        self.assertEqual(
+            self.client.get(f"/api/v1/diet-plans/{plan_id}", headers=other_headers).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.put(
+                f"/api/v1/diet-plans/{plan_id}",
+                headers=other_headers,
+                json={"Status": "Completed"},
+            ).status_code,
+            404,
+        )
+
+    def test_diet_plan_generation_refuses_unsupported_allergy_safety(self):
+        registration = self.register("allergy-plan@example.com")
+        headers = {"Authorization": f"Bearer {registration['access_token']}"}
+        self.assertEqual(self.onboard(registration["access_token"]).status_code, 201)
+        updated = self.client.put("/api/profile", headers=headers, json={
+            "full_name": "Test User",
+            "age": 31,
+            "height_cm": 170,
+            "gender": None,
+            "activity_level": "light",
+            "dietary_preference": "Vegetarian",
+            "allergies": "Peanuts",
+            "exercise_preferences": "",
+            "daily_routine": "",
+        })
+        self.assertEqual(updated.status_code, 200, updated.text)
+        response = self.client.post(
+            "/api/v1/diet-plans/generate",
+            headers=headers,
+            json={"StartDate": date.today().isoformat(), "Days": 1},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("allergen data", response.json()["detail"])
+
     def test_password_reset_revokes_existing_sessions(self):
         session = self.register("reset@example.com")
         with patch.dict("os.environ", {"NUTRIPATH_SMTP_HOST": "smtp.example.test"}):
@@ -271,6 +638,404 @@ class JourneyApiTests(unittest.TestCase):
         self.assertEqual(other_nutrition["calorieGoal"], 2000)
         self.assertEqual(self.client.delete(f"/api/nutrition/meals/{added.json()['id']}", headers=second_headers).status_code, 404)
         self.assertEqual(self.client.delete(f"/api/nutrition/meals/{added.json()['id']}", headers=first_headers).status_code, 204)
+
+    def test_nutrition_log_with_food_change_request_cannot_be_deleted(self):
+        session = self.register("nutrition-request@example.com")
+        headers = {"Authorization": f"Bearer {session['access_token']}"}
+        added = self.client.post(
+            "/api/nutrition/meals",
+            headers=headers,
+            json={
+                "food_id": "idli",
+                "food_name": "Idli",
+                "emoji": "🍘",
+                "meal_type": "Breakfast",
+                "quantity": 1,
+                "serving_label": "1 piece",
+                "serving_grams": 40,
+                "calories": 58,
+                "protein": 2,
+                "carbs": 12,
+                "fats": 0.2,
+                "date": date.today().isoformat(),
+            },
+        )
+        self.assertEqual(added.status_code, 201, added.text)
+        request = self.client.post(
+            "/api/v1/food-change-requests/",
+            headers=headers,
+            json={
+                "NutritionLogID": added.json()["id"],
+                "Reason": "Food preference",
+            },
+        )
+        self.assertEqual(request.status_code, 201, request.text)
+
+        rejected_delete = self.client.delete(
+            f"/api/nutrition/meals/{added.json()['id']}",
+            headers=headers,
+        )
+        self.assertEqual(rejected_delete.status_code, 409)
+        self.assertIn("associated food-change request", rejected_delete.json()["detail"])
+
+        with self.session_factory() as db:
+            log = db.get(NutritionLog, added.json()["id"])
+            self.assertIsNotNone(log)
+            saved_request = db.get(FoodChangeRequest, request.json()["RequestID"])
+            self.assertIsNotNone(saved_request)
+            self.assertEqual(saved_request.NutritionLogID, log.id)
+
+        other = self.register("another-nutrition-request@example.com")
+        other_headers = {"Authorization": f"Bearer {other['access_token']}"}
+        self.assertEqual(
+            self.client.delete(
+                f"/api/nutrition/meals/{added.json()['id']}",
+                headers=other_headers,
+            ).status_code,
+            404,
+        )
+
+    def test_inactive_accounts_cannot_use_existing_sessions(self):
+        session = self.register("inactive@example.com")
+        legacy_registration = self.client.post("/api/v1/users/register", json={
+            "FullName": "Inactive Legacy User",
+            "Email": "inactive-legacy@example.com",
+            "Password": "password-123",
+        })
+        self.assertEqual(legacy_registration.status_code, 201, legacy_registration.text)
+        legacy_login = self.client.post("/api/v1/users/login", data={
+            "username": "inactive-legacy@example.com",
+            "password": "password-123",
+        })
+        self.assertEqual(legacy_login.status_code, 200, legacy_login.text)
+        with self.session_factory() as db:
+            user = db.get(User, session["user"]["id"])
+            user.is_active = False
+            legacy_user = db.get(User, legacy_registration.json()["UserID"])
+            legacy_user.is_active = False
+            db.commit()
+
+        response = self.client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {session['access_token']}"},
+        )
+        self.assertEqual(response.status_code, 401)
+        inactive_login = self.client.post("/api/auth/login", json={
+            "email": "inactive@example.com",
+            "password": "secure-password-123",
+        })
+        self.assertEqual(inactive_login.status_code, 403)
+        legacy_response = self.client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {legacy_login.json()['access_token']}"},
+        )
+        self.assertEqual(legacy_response.status_code, 401)
+
+    def test_food_replacement_request_coach_suggestion_and_resolution(self):
+        member = self.register("member@example.com")
+        coach = self.register("coach@example.com", "Coach User")
+        member_headers = {"Authorization": f"Bearer {member['access_token']}"}
+        coach_headers = {"Authorization": f"Bearer {coach['access_token']}"}
+        with self.session_factory() as db:
+            coach_user = db.get(User, coach["user"]["id"])
+            coach_user.role = "Coach"
+            original_food = FoodItem(
+                CatalogID="idli",
+                FoodName="Idli",
+                Category="Breakfast",
+                Calories=58,
+                Protein=2,
+                Carbs=12,
+                Fat=0.2,
+                Fiber=1,
+                ServingSize="1 piece",
+                IsActive=True,
+            )
+            replacement_food = FoodItem(
+                CatalogID="poha",
+                FoodName="Poha",
+                Category="Breakfast",
+                Calories=250,
+                Protein=5,
+                Carbs=42,
+                Fat=7,
+                Fiber=2,
+                ServingSize="1 bowl",
+                IsActive=True,
+            )
+            inactive_food = FoodItem(
+                CatalogID="inactive-food",
+                FoodName="Inactive food",
+                Category="Breakfast",
+                Calories=100,
+                Protein=2,
+                Carbs=10,
+                Fat=3,
+                Fiber=1,
+                ServingSize="1 serving",
+                IsActive=False,
+            )
+            uncatalogued_food = FoodItem(
+                CatalogID=None,
+                FoodName="Uncatalogued active food",
+                Category="Breakfast",
+                Calories=100,
+                Protein=2,
+                Carbs=10,
+                Fat=3,
+                Fiber=1,
+                ServingSize="1 serving",
+                IsActive=True,
+            )
+            db.add_all([original_food, replacement_food, inactive_food, uncatalogued_food])
+            db.flush()
+            nutrition_entry = NutritionLog(
+                user_id=member["user"]["id"],
+                food_id="idli",
+                food_name="Idli",
+                emoji="🍘",
+                meal_type="Breakfast",
+                quantity=2,
+                serving_label="1 piece",
+                serving_grams=40,
+                calories=116,
+                protein=4,
+                carbs=24,
+                fats=0.4,
+                logged_on=date.today(),
+            )
+            db.add(nutrition_entry)
+            db.commit()
+            nutrition_entry_id = nutrition_entry.id
+            replacement_food_id = replacement_food.FoodID
+            inactive_food_id = inactive_food.FoodID
+            uncatalogued_food_id = uncatalogued_food.FoodID
+
+        food_catalog = self.client.get("/api/v1/foods/")
+        self.assertEqual(food_catalog.status_code, 200, food_catalog.text)
+        self.assertEqual(food_catalog.json()[0]["CatalogID"], "idli")
+
+        created = self.client.post(
+            "/api/v1/food-change-requests/",
+            headers=member_headers,
+            json={"NutritionLogID": nutrition_entry_id, "Reason": "Food preference"},
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        request_id = created.json()["RequestID"]
+        duplicate = self.client.post(
+            "/api/v1/food-change-requests/",
+            headers=member_headers,
+            json={"NutritionLogID": nutrition_entry_id, "Reason": "Food preference"},
+        )
+        self.assertEqual(duplicate.status_code, 409)
+
+        other_member = self.register("other-member@example.com")
+        other_headers = {"Authorization": f"Bearer {other_member['access_token']}"}
+        self.assertEqual(
+            self.client.get(
+                f"/api/v1/food-change-requests/{request_id}",
+                headers=other_headers,
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(
+                f"/api/v1/food-change-requests/{request_id}/accept",
+                headers=other_headers,
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(
+                "/api/v1/coach/requests",
+                headers=member_headers,
+            ).status_code,
+            403,
+        )
+        invalid_suggestion = self.client.post(
+            f"/api/v1/coach/requests/{request_id}/suggestion",
+            headers=coach_headers,
+            json={"SuggestedFoodID": inactive_food_id},
+        )
+        self.assertEqual(invalid_suggestion.status_code, 404)
+
+        pending = self.client.get(
+            "/api/v1/coach/requests",
+            headers=coach_headers,
+        )
+        self.assertEqual(pending.status_code, 200, pending.text)
+        self.assertEqual(pending.json()[0]["Status"], "Pending")
+        suggestion = self.client.post(
+            f"/api/v1/coach/requests/{request_id}/suggestion",
+            headers=coach_headers,
+            json={"SuggestedFoodID": replacement_food_id, "Message": "Try this instead."},
+        )
+        self.assertEqual(suggestion.status_code, 201, suggestion.text)
+        self.assertEqual(suggestion.json()["Status"], "Reviewed")
+        self.assertNotIn("Email", suggestion.json()["User"])
+
+        accepted = self.client.post(
+            f"/api/v1/food-change-requests/{request_id}/accept",
+            headers=member_headers,
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self.assertEqual(accepted.json()["Status"], "Accepted")
+        self.assertEqual(
+            accepted.json()["NutritionLog"]["food_name"],
+            "Poha",
+        )
+        self.assertEqual(accepted.json()["NutritionLog"]["food_id"], "poha")
+
+        rejected_request = self.client.post(
+            "/api/v1/food-change-requests/",
+            headers=member_headers,
+            json={"NutritionLogID": nutrition_entry_id, "Reason": "Another option"},
+        )
+        self.assertEqual(rejected_request.status_code, 201, rejected_request.text)
+        rejected_request_id = rejected_request.json()["RequestID"]
+        rejected_suggestion = self.client.post(
+            f"/api/v1/coach/requests/{rejected_request_id}/suggestion",
+            headers=coach_headers,
+            json={"SuggestedFoodID": replacement_food_id},
+        )
+        self.assertEqual(rejected_suggestion.status_code, 201, rejected_suggestion.text)
+        rejected = self.client.post(
+            f"/api/v1/food-change-requests/{rejected_request_id}/reject",
+            headers=member_headers,
+        )
+        self.assertEqual(rejected.status_code, 200, rejected.text)
+        self.assertEqual(rejected.json()["Status"], "Rejected")
+        self.assertEqual(rejected.json()["Suggestion"]["Status"], "Rejected")
+
+        uncatalogued_request = self.client.post(
+            "/api/v1/food-change-requests/",
+            headers=member_headers,
+            json={"NutritionLogID": nutrition_entry_id, "Reason": "Test unsupported catalog mapping"},
+        )
+        self.assertEqual(uncatalogued_request.status_code, 201, uncatalogued_request.text)
+        uncatalogued_request_id = uncatalogued_request.json()["RequestID"]
+        uncatalogued_suggestion = self.client.post(
+            f"/api/v1/coach/requests/{uncatalogued_request_id}/suggestion",
+            headers=coach_headers,
+            json={"SuggestedFoodID": uncatalogued_food_id},
+        )
+        self.assertEqual(uncatalogued_suggestion.status_code, 201, uncatalogued_suggestion.text)
+        blocked_acceptance = self.client.post(
+            f"/api/v1/food-change-requests/{uncatalogued_request_id}/accept",
+            headers=member_headers,
+        )
+        self.assertEqual(blocked_acceptance.status_code, 409, blocked_acceptance.text)
+        self.assertIn("no catalog identifier", blocked_acceptance.json()["detail"])
+        preserved_request = self.client.get(
+            f"/api/v1/food-change-requests/{uncatalogued_request_id}",
+            headers=member_headers,
+        )
+        self.assertEqual(preserved_request.json()["Status"], "Reviewed")
+        self.assertEqual(preserved_request.json()["Suggestion"]["Status"], "Pending")
+        preserved_nutrition = self.client.get(
+            "/api/nutrition",
+            headers=member_headers,
+        )
+        retained_meal = next(
+            meal for meal in preserved_nutrition.json()["meals"]
+            if meal["id"] == nutrition_entry_id
+        )
+        self.assertEqual(retained_meal["foodId"], "poha")
+
+        coach_queue = self.client.get(
+            "/api/v1/coach/requests",
+            headers=coach_headers,
+        )
+        self.assertEqual(coach_queue.status_code, 200, coach_queue.text)
+        statuses = {request["RequestID"]: request["Status"] for request in coach_queue.json()}
+        self.assertEqual(statuses[request_id], "Accepted")
+        self.assertEqual(statuses[rejected_request_id], "Rejected")
+
+    def test_meal_crud_and_user_isolation(self):
+        registration = self.client.post("/api/v1/users/register", json={
+            "FullName": "Meal Owner",
+            "Email": "meal-owner@example.com",
+            "Password": "password-123",
+        })
+        self.assertEqual(registration.status_code, 201, registration.text)
+        login = self.client.post("/api/v1/users/login", data={
+            "username": "meal-owner@example.com",
+            "password": "password-123",
+        })
+        self.assertEqual(login.status_code, 200, login.text)
+        owner_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+        other_registration = self.client.post("/api/v1/users/register", json={
+            "FullName": "Another User",
+            "Email": "another-meal-user@example.com",
+            "Password": "password-123",
+        })
+        self.assertEqual(other_registration.status_code, 201, other_registration.text)
+        other_login = self.client.post("/api/v1/users/login", data={
+            "username": "another-meal-user@example.com",
+            "password": "password-123",
+        })
+        other_headers = {"Authorization": f"Bearer {other_login.json()['access_token']}"}
+
+        with self.session_factory() as db:
+            food = FoodItem(
+                CatalogID="meal-crud-food",
+                FoodName="Meal CRUD Food",
+                Category="Breakfast",
+                Calories=100,
+                Protein=5,
+                Carbs=10,
+                Fat=2,
+                Fiber=1,
+                ServingSize="1 serving",
+                IsActive=True,
+            )
+            db.add(food)
+            db.commit()
+            food_id = food.FoodID
+
+        today = date.today().isoformat()
+        created_meal = self.client.post(
+            "/api/v1/meals/",
+            headers=owner_headers,
+            json={"MealDate": today, "MealType": "Breakfast"},
+        )
+        self.assertEqual(created_meal.status_code, 201, created_meal.text)
+        meal_id = created_meal.json()["MealID"]
+        added_item = self.client.post(
+            f"/api/v1/meals/{meal_id}/items",
+            headers=owner_headers,
+            json={"FoodID": food_id, "Quantity": 1, "ServingUnit": "serving"},
+        )
+        self.assertEqual(added_item.status_code, 201, added_item.text)
+        item_id = added_item.json()["MealItemID"]
+        history = self.client.get(
+            f"/api/v1/meals/{today}",
+            headers=owner_headers,
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()[0]["Items"][0]["Food"]["FoodName"], "Meal CRUD Food")
+        self.assertEqual(
+            self.client.delete(f"/api/v1/meals/{meal_id}", headers=other_headers).status_code,
+            404,
+        )
+        updated_item = self.client.put(
+            f"/api/v1/meals/{meal_id}/items/{item_id}",
+            headers=owner_headers,
+            json={"Quantity": 2},
+        )
+        self.assertEqual(updated_item.status_code, 200, updated_item.text)
+        self.assertEqual(float(updated_item.json()["Quantity"]), 2)
+        deleted_item = self.client.delete(
+            f"/api/v1/meals/{meal_id}/items/{item_id}",
+            headers=owner_headers,
+        )
+        self.assertEqual(deleted_item.status_code, 204)
+        deleted_meal = self.client.delete(
+            f"/api/v1/meals/{meal_id}",
+            headers=owner_headers,
+        )
+        self.assertEqual(deleted_meal.status_code, 204)
 
 
 if __name__ == "__main__":

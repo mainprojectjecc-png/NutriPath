@@ -123,7 +123,7 @@ def current_user(
     if not session or session.expires_at <= utc_now():
         raise unauthorized
     user = db.get(User, session.user_id)
-    if not user:
+    if not user or not user.is_active:
         raise unauthorized
     return user
 

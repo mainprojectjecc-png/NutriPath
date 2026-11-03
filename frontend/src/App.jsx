@@ -70,7 +70,7 @@ export default function App() {
     "Daily Meal Tracker": <DailyMealTracker userId={user?.id} />,
     "Meal Planner": <MealPlanner userId={user?.id} setActivePage={setActivePage} />,
     "Weight Journey": <WeightJourney user={user} onUserUpdate={setUser} />,
-    "Health Coach": <HealthCoach />
+    "Health Coach": <HealthCoach user={user} />
   };
 
   if (journey === "checking") return <div className="tracker-loading" role="status">Preparing your NutriPath space…</div>;

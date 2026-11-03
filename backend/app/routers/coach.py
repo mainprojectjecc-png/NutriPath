@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy import true
 from sqlalchemy.orm import Session
 
-from app.auth import verify_access_token
+from app.security import current_user as get_current_user
 from app.database import get_db
 from app.models.coach_suggestion import CoachSuggestion
 from app.models.food_change_request import FoodChangeRequest
@@ -21,10 +21,10 @@ from app.services.transactions import commit_or_raise
 router = APIRouter(prefix="/api/v1/coach", tags=["Coach"])
 
 
-def _require_coach(db: Session, current_user: dict) -> int:
+def _require_coach(db: Session, current_user: User) -> int:
     user = (
         db.query(User.UserID, User.Role, User.IsActive)
-        .filter(User.UserID == current_user["user_id"])
+        .filter(User.UserID == current_user.id)
         .first()
     )
     if user is None:
@@ -63,16 +63,15 @@ def _get_request_response(db: Session, request_id: int) -> CoachRequestResponse:
 @router.get(
     "/requests",
     response_model=list[CoachRequestResponse],
-    summary="List pending food change requests",
+    summary="List pending and reviewed food change requests",
 )
-def get_pending_requests(
+def get_coach_requests(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> list[CoachRequestResponse]:
     _require_coach(db, current_user)
     rows = (
         request_details_query(db)
-        .filter(FoodChangeRequest.Status == "Pending")
         .order_by(
             FoodChangeRequest.CreatedAt.asc(),
             FoodChangeRequest.RequestID.asc(),
@@ -97,7 +96,7 @@ def create_suggestion(
     request_id: Annotated[int, Path(gt=0)],
     suggestion_data: CoachSuggestionCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> CoachRequestResponse:
     coach_id = _require_coach(db, current_user)
     request = (
@@ -170,6 +169,7 @@ def create_suggestion(
         )
     db.add(suggestion)
     commit_or_raise(db)
+    db.expire_all()
     return _get_request_response(db, request_id)
 
 
@@ -181,7 +181,7 @@ def create_suggestion(
 def get_coach_request(
     request_id: Annotated[int, Path(gt=0)],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_access_token),
+    current_user: User = Depends(get_current_user),
 ) -> CoachRequestResponse:
     _require_coach(db, current_user)
     return _get_request_response(db, request_id)

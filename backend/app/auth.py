@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import User
 
 
 load_dotenv()
@@ -46,7 +50,10 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 
-def verify_access_token(token: str = Depends(oauth2_scheme)):
+def verify_access_token(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
     try:
         payload = jwt.decode(
             token,
@@ -62,9 +69,16 @@ def verify_access_token(token: str = Depends(oauth2_scheme)):
                 detail="Invalid authentication token"
             )
 
+        user = db.get(User, int(user_id))
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
+
         return {
-            "user_id": int(user_id),
-            "role": payload.get("role")
+            "user_id": user.id,
+            "role": user.role
         }
 
     except (JWTError, ValueError):
