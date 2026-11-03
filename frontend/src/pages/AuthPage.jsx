@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Leaf, LockKeyhole, Mail, UserRound } from "lucide-react";
 import api, { TOKEN_KEY } from "../services/api";
 
-export default function AuthPage({ onAuthenticated }) {
+export default function AuthPage({ onAuthenticated, initialMode = "login" }) {
   const resetToken = new URLSearchParams(window.location.search).get("reset_token") || "";
-  const [mode, setMode] = useState(resetToken ? "reset" : "login");
+  const [mode, setMode] = useState(resetToken ? "reset" : initialMode);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,18 +72,18 @@ export default function AuthPage({ onAuthenticated }) {
   const description = mode === "forgot"
     ? "We’ll send a secure reset link if an account matches your email."
     : mode === "reset" ? "Choose a strong password to secure your account."
-      : isRegistration ? "Start building healthier habits, one step at a time." : "Sign in to continue your health journey.";
+      : isRegistration ? "Create your personal space for thoughtful, lasting wellbeing." : "Sign in to continue your wellness journey.";
 
   return (
     <main className="journey-auth-page">
       <section className="journey-auth-brand">
         <div className="journey-auth-logo"><span><Leaf size={24} /></span><div><strong>NutriPath</strong><small>HEALTHIER EVERY DAY</small></div></div>
         <div className="journey-auth-pitch">
-          <span className="tracker-eyebrow">A HEALTHIER YOU, AT YOUR PACE</span>
-          <h1>Your journey.<br />Your way forward.</h1>
-          <p>Build a thoughtful plan around your life, and celebrate progress that feels right for you.</p>
+          <span className="tracker-eyebrow">WELLBEING, WITH INTENTION</span>
+          <h1>Your health.<br />Your way forward.</h1>
+          <p>Thoughtful tools and personal guidance to help healthy habits feel natural, every day.</p>
         </div>
-        <div className="journey-auth-note"><span>✦</span><p>Real progress is personal. We’ll help you make a plan that respects yours.</p></div>
+        <div className="journey-auth-note"><span>✦</span><p>A considered approach to everyday nutrition, movement and lasting wellbeing.</p></div>
       </section>
 
       <section className="journey-auth-main">

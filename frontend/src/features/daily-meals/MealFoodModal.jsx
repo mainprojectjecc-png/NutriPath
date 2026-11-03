@@ -19,10 +19,11 @@ export default function MealFoodModal({ mealType, foods, catalogError, onClose, 
   const [saving, setSaving] = useState(false);
   const filteredFoods = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
-    return foods.filter(food =>
-      (!search || food.name.toLocaleLowerCase().includes(search)) &&
-      (food.category === mealType || !search)
-    );
+    return foods.filter(food => {
+      if (!search) return food.category === mealType;
+      return food.name.toLocaleLowerCase().includes(search) ||
+        food.category.toLocaleLowerCase().includes(search);
+    });
   }, [foods, mealType, query]);
   const servingOptions = selectedFood ? getServingOptions(selectedFood) : [];
   const selectedServing = servingOptions.find(option => option.label === servingLabel) || servingOptions[0];
@@ -90,7 +91,7 @@ export default function MealFoodModal({ mealType, foods, catalogError, onClose, 
               <Search size={18} />
               <input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Indian foods..." aria-label="Search foods" />
             </label>
-            {catalogError && <p className="tracker-form-error" role="alert">{catalogError}</p>}
+            {catalogError && <p className="tracker-catalog-notice" role="status">{catalogError}</p>}
             <div className="tracker-food-results">
               {filteredFoods.length ? filteredFoods.map(food => (
                 <button type="button" className="tracker-food-option" key={food.id} onClick={() => chooseFood(food)}>

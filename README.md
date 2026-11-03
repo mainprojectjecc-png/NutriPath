@@ -88,8 +88,12 @@ npm install
 npm run dev
 ```
 
-The frontend uses `http://localhost:8000` by default. Override this with
-`VITE_API_URL` when the API is hosted elsewhere.
+During local development, the Vite server forwards `/api` requests to
+`http://127.0.0.1:8000`, avoiding browser cross-origin preflight issues.
+Set `VITE_API_URL` to use a different API (for example, the QA API); direct
+cross-origin API URLs must be allowed by the backend's
+`NUTRIPATH_CORS_ORIGINS` setting. In a production frontend build, the default
+API URL is `http://localhost:8000`.
 
 ### SQL Server QA environment
 

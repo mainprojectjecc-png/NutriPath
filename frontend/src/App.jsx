@@ -8,19 +8,21 @@ import HealthCoach from "./pages/HealthCoach";
 import DailyMealTracker from "./features/daily-meals/DailyMealTracker";
 import AuthPage from "./pages/AuthPage";
 import Onboarding from "./pages/Onboarding";
+import WelcomePage from "./pages/WelcomePage";
 import api, { TOKEN_KEY } from "./services/api";
 
 export default function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [user, setUser] = useState(null);
   const [journey, setJourney] = useState("checking");
+  const [authMode, setAuthMode] = useState("login");
   const [startupMessage, setStartupMessage] = useState("");
 
   useEffect(() => {
     let active = true;
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      setJourney("auth");
+      setJourney(new URLSearchParams(window.location.search).has("reset_token") ? "auth" : "welcome");
       return () => { active = false; };
     }
 
@@ -46,6 +48,11 @@ export default function App() {
     setJourney(authenticatedUser.onboarding_completed ? "app" : "onboarding");
   }
 
+  function openAuth(mode) {
+    setAuthMode(mode);
+    setJourney("auth");
+  }
+
   function onOnboardingComplete(profile) {
     setUser(profile.user);
     setJourney("app");
@@ -60,7 +67,7 @@ export default function App() {
     } finally {
       localStorage.removeItem(TOKEN_KEY);
       setUser(null);
-      setJourney("auth");
+      setJourney("welcome");
       setActivePage("Dashboard");
     }
   }
@@ -70,11 +77,12 @@ export default function App() {
     "Daily Meal Tracker": <DailyMealTracker userId={user?.id} />,
     "Meal Planner": <MealPlanner userId={user?.id} setActivePage={setActivePage} />,
     "Weight Journey": <WeightJourney user={user} onUserUpdate={setUser} />,
-    "Health Coach": <HealthCoach user={user} />
+    "Health Coach": <HealthCoach user={user} setActivePage={setActivePage} />
   };
 
   if (journey === "checking") return <div className="tracker-loading" role="status">Preparing your NutriPath space…</div>;
-  if (journey === "auth") return <><AuthPage onAuthenticated={onAuthenticated} />{startupMessage && <p className="journey-startup-message" role="alert">{startupMessage}</p>}</>;
+  if (journey === "welcome") return <WelcomePage onGetStarted={() => openAuth("register")} onSignIn={() => openAuth("login")} />;
+  if (journey === "auth") return <><AuthPage initialMode={authMode} onAuthenticated={onAuthenticated} />{startupMessage && <p className="journey-startup-message" role="alert">{startupMessage}</p>}</>;
   if (journey === "onboarding") return <Onboarding user={user} onComplete={onOnboardingComplete} onLogout={logout} />;
 
   return (

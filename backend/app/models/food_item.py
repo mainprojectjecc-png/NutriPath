@@ -1,11 +1,25 @@
-from sqlalchemy import Column, Integer, String, Numeric, Boolean, DateTime
+
+from sqlalchemy import (
+    Column, Integer, String, Numeric, Boolean, DateTime,
+    Index, text
+)
 from app.database import Base, utc_now
+
 
 class FoodItem(Base):
     __tablename__ = "FoodItems"
 
+    __table_args__ = (
+        Index(
+            "UX_FoodItems_CatalogID",
+            "CatalogID",
+            unique=True,
+            mssql_where=text("[CatalogID] IS NOT NULL"),
+        ),
+    )
+
     FoodID = Column(Integer, primary_key=True, index=True)
-    CatalogID = Column(String(80), unique=True, nullable=True)
+    CatalogID = Column(String(80), nullable=True)
     FoodName = Column(String(150), nullable=False)
     Category = Column(String(50))
     Calories = Column(Numeric(8, 2), nullable=False)

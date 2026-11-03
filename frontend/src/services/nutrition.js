@@ -96,11 +96,13 @@ export function getActiveFoods() {
   return api.get("/api/v1/foods/");
 }
 
-export function createFoodReplacementRequest(nutritionLogId, reason) {
-  return api.post("/api/v1/food-change-requests/", {
+export function createFoodReplacementRequest(nutritionLogId, reason, requestedFoodId) {
+  const request = {
     NutritionLogID: nutritionLogId,
     Reason: reason,
-  });
+  };
+  if (requestedFoodId) request.RequestedFoodID = requestedFoodId;
+  return api.post("/api/v1/food-change-requests/", request);
 }
 
 export function acceptFoodReplacementSuggestion(requestId) {

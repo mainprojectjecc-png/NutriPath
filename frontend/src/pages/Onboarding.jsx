@@ -123,7 +123,7 @@ export default function Onboarding({ user, onComplete, onLogout }) {
   return <main className="journey-onboarding-page">
     <header className="journey-onboarding-topbar"><div className="journey-auth-logo"><span><Leaf size={22} /></span><div><strong>NutriPath</strong><small>YOUR HEALTHIER EVERY DAY</small></div></div><button type="button" onClick={onLogout}>Sign out</button></header>
     <div className="journey-onboarding-wrap">
-      <div className="journey-onboarding-intro"><span className="tracker-eyebrow">YOUR JOURNEY STARTS HERE</span><h1>Let’s make this personal.</h1><p>A few details help us shape a thoughtful plan around your goals and everyday life.</p></div>
+      <div className="journey-onboarding-intro"><span className="tracker-eyebrow">A MORE PERSONAL APPROACH</span><h1>Let’s make this personal.</h1><p>Share a few details so your NutriPath experience can reflect your goals, preferences and everyday life.</p></div>
       <div className="journey-stepper" aria-label={`Step ${step + 1} of ${steps.length}`}>
         {steps.map((label, index) => <div className={`journey-step ${index === step ? "active" : ""} ${index < step ? "complete" : ""}`} key={label}><span>{index < step ? <Check size={15} /> : index + 1}</span><small>{label}</small></div>)}
       </div>

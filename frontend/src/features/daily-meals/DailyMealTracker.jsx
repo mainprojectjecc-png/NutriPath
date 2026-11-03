@@ -3,7 +3,7 @@ import { Activity, CalendarDays, ChevronLeft, ChevronRight, Droplets, Flame, Plu
 import MealFoodModal from "./MealFoodModal";
 import MealHistoryCalendar from "./MealHistoryCalendar";
 import NutritionChart from "./NutritionChart";
-import { foodCatalog, mealTypes } from "./foodCatalog";
+import { foodCatalog, getFoodOptions, mealTypes } from "./foodCatalog";
 import {
   addFoodEntry,
   addWaterEntry,
@@ -50,7 +50,7 @@ function getInsight(totals, calorieGoal, meals, selectedDate) {
 export default function DailyMealTracker({ userId = "guest" }) {
   const today = dateKey(new Date());
   const [data, setData] = useState(null);
-  const [foods, setFoods] = useState([]);
+  const [foods, setFoods] = useState(foodCatalog);
   const [selectedDate, setSelectedDate] = useState(today);
   const [modalMealType, setModalMealType] = useState(null);
   const [chartPeriod, setChartPeriod] = useState("week");
@@ -68,7 +68,7 @@ export default function DailyMealTracker({ userId = "guest" }) {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setFoods([]);
+    setFoods(foodCatalog);
     setCatalogError("");
     getNutritionData(userId)
       .then(result => { if (active) { setData(result); setError(""); } })
@@ -77,25 +77,17 @@ export default function DailyMealTracker({ userId = "guest" }) {
     getActiveFoods()
       .then(items => {
         if (!active) return;
-        const catalogById = new Map(foodCatalog.map(food => [food.id, food]));
-        setFoods(items.flatMap(item => {
-          const catalogFood = catalogById.get(item.CatalogID);
-          if (!catalogFood) return [];
-          return [{
-            ...catalogFood,
-            name: item.FoodName,
-            category: item.Category,
-            servingLabel: item.ServingSize || catalogFood.servingLabel,
-            calories: Number(item.Calories),
-            protein: Number(item.Protein),
-            carbs: Number(item.Carbs),
-            fats: Number(item.Fat)
-          }];
-        }));
-        setCatalogError("");
+        if (!Array.isArray(items)) {
+          throw new Error("The food catalog returned an invalid response.");
+        }
+        setFoods(getFoodOptions(items));
+        setCatalogError(items.length ? "" : "The online catalog has no active foods. You can still use the built-in food list.");
       })
       .catch(loadError => {
-        if (active) setCatalogError(loadError.message || "The food catalog could not be loaded.");
+        if (active) {
+          setFoods(foodCatalog);
+          setCatalogError(`The online catalog could not be loaded. You can still use the built-in food list. ${loadError.message || ""}`.trim());
+        }
       });
     return () => { active = false; };
   }, [userId, loadAttempt]);

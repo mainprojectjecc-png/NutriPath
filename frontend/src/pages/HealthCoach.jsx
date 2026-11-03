@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  HeartPulse, Send, CheckCircle2, Clock,
-  MessageCircle, Leaf, ThumbsDown, ThumbsUp
+  HeartPulse, Send, CheckCircle2, Clock, XCircle,
+  Leaf, ThumbsDown, ThumbsUp, RefreshCw, ShieldCheck
 } from "lucide-react";
 import {
   acceptFoodReplacementSuggestion,
@@ -29,21 +29,40 @@ function requestStatus(request) {
 }
 
 function statusClass(status) {
-  if (status === "Reviewed" || status === "Suggested" || status === "Rejected") {
+  if (status === "Reviewed" || status === "Suggested") {
     return "suggested";
   }
   return status.toLowerCase();
 }
 
-export default function HealthCoach({ user }) {
+function RequestStatusIcon({ status }) {
+  if (status === "Accepted" || status === "Reviewed") {
+    return <CheckCircle2 size={14} />;
+  }
+  if (status === "Rejected") {
+    return <XCircle size={14} />;
+  }
+  return <Clock size={14} />;
+}
+
+function formatRequestDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+export default function HealthCoach({ user, setActivePage }) {
   const role = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
   const isCoach = role === "coach";
-  const isUser = role === "user";
+  const isUser = Boolean(user) && !isCoach;
 
   const [requests, setRequests] = useState([]);
   const [meals, setMeals] = useState([]);
   const [foods, setFoods] = useState([]);
   const [selectedMealId, setSelectedMealId] = useState("");
+  const [requestedFoodId, setRequestedFoodId] = useState("");
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [suggestedFoodId, setSuggestedFoodId] = useState("");
   const [reason, setReason] = useState("");
@@ -77,12 +96,14 @@ export default function HealthCoach({ user }) {
               : ""
         );
       } else if (isUser) {
-        const [nutrition, userRequests] = await Promise.all([
+        const [nutrition, userRequests, activeFoods] = await Promise.all([
           getNutritionData(user.id),
-          getFoodReplacementRequests()
+          getFoodReplacementRequests(),
+          getActiveFoods()
         ]);
         setMeals(nutrition.meals);
         setRequests(userRequests);
+        setFoods(activeFoods);
       }
     } catch (loadError) {
       setError(loadError.message || "Unable to load your coach data.");
@@ -107,9 +128,14 @@ export default function HealthCoach({ user }) {
 
     try {
       setSubmitting(true);
-      await createFoodReplacementRequest(Number(selectedMealId), reason);
+      await createFoodReplacementRequest(
+        Number(selectedMealId),
+        reason,
+        requestedFoodId ? Number(requestedFoodId) : undefined
+      );
       setMessage("Your request was sent to the coach.");
       setSelectedMealId("");
+      setRequestedFoodId("");
       setReason("");
       await loadData();
     } catch (requestError) {
@@ -187,83 +213,84 @@ export default function HealthCoach({ user }) {
   const resolvedRequests = isCoach
     ? requests.filter(request => request.Status === "Accepted" || request.Status === "Rejected")
     : [];
-  const pendingRequests = isCoach
-    ? requests.filter(request => request.Status === "Pending")
-    : requests;
+  const pendingRequests = requests.filter(request => request.Status === "Pending");
+  const visibleRequests = isCoach ? pendingRequests : requests;
   const suggestionsCount = requests.filter(
     request => request.Suggestion?.Status === "Pending"
   ).length;
 
-  if (!isCoach && !isUser) {
-    return <p className="form-message" role="alert">A valid User or Coach role is required.</p>;
+  if (!user) {
+    return <p className="form-message" role="alert">Sign in to open your Health Coach workspace.</p>;
   }
 
   return (
-    <>
+    <div className="health-coach-page">
       <div className="page-title-row">
         <div>
           <span className="eyebrow">
-            {isCoach ? "COACH REQUEST MANAGEMENT" : "PERSONALIZED WELLNESS SUPPORT"}
+            {isCoach ? "NUTRIPATH · COACH WORKSPACE" : "NUTRIPATH · PERSONAL WELLNESS"}
           </span>
-          <h1>{isCoach ? "Coach Dashboard" : "My Health Coach"}</h1>
+          <h1>{isCoach ? "Thoughtful care, made practical." : "Your health, with a little more guidance."}</h1>
           <p>
             {isCoach
-              ? "Review member requests and suggest suitable food alternatives."
-              : "Get guidance and make healthier everyday choices."}
+              ? "Support every recommendation with care, context and a practical next step."
+              : "Personal guidance to help make everyday food choices feel more achievable."}
           </p>
         </div>
         <span className="online-label">
           <span className="online-dot"></span>
-          {isCoach ? "Coach view" : "Connected"}
+          {isCoach ? "Coach workspace" : "Member workspace"}
         </span>
       </div>
 
       <section className="coach-banner">
         <div className="coach-icon">
-          <HeartPulse size={35} />
+          <HeartPulse size={31} strokeWidth={1.8} />
         </div>
         <div>
-          <h2>{isCoach ? "Member food requests" : "Your wellness companion"}</h2>
+          <span className="coach-banner-kicker">SMALL STEPS. LASTING WELLNESS.</span>
+          <h2>{isCoach ? "Good guidance starts with listening." : "A more considered way to eat well."}</h2>
           <p>
             {isCoach
-              ? "Review pending requests and send personalized food suggestions."
-              : "Explore food alternatives, review suggestions and manage your requests."}
+              ? "Understand each member’s needs, then offer a thoughtful and realistic alternative."
+              : "Share what works for you, explore alternatives and take the next step at your own pace."}
           </p>
         </div>
-        <div className="coach-leaf">🌿</div>
+        <div className="coach-leaf" aria-hidden="true">✳</div>
       </section>
 
       {(message || error) && (
-        <p className="form-message" role={error ? "alert" : "status"}>
+        <p className={`form-message coach-feedback${error ? " is-error" : " is-success"}`} role={error ? "alert" : "status"}>
           {error || message}
         </p>
       )}
-      {loading && <p className="form-message" role="status">Loading your latest data...</p>}
+      {loading && <p className="form-message coach-loading" role="status">Refreshing your latest information…</p>}
 
       <div className="dashboard-grid">
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h3>{isCoach ? "Review pending requests" : "Food replacement request"}</h3>
+              <span className="coach-section-label">{isCoach ? "MEMBER SUPPORT" : "PERSONALISE YOUR PLAN"}</span>
+              <h3>{isCoach ? "Review a member request" : "Request a food alternative"}</h3>
               <p>
                 {isCoach
-                  ? "Choose a pending request and an active food from the catalog."
-                  : "Tell us what food you want to replace."}
+                  ? "Explore the context, then recommend an option that feels realistic."
+                  : "Tell your coach what you would like to change and why."}
               </p>
             </div>
-            <Leaf size={22} />
+            <span className="coach-heading-icon"><Leaf size={19} /></span>
           </div>
 
           {isCoach ? (
             <form className="request-form" onSubmit={handleSuggestion}>
-              <label htmlFor="coach-request">Request to review</label>
+              <label htmlFor="coach-request">Member request</label>
               <select
                 id="coach-request"
                 value={selectedRequestId}
                 onChange={e => setSelectedRequestId(e.target.value)}
                 required
               >
-                <option value="">Select a pending request</option>
+                <option value="">Choose a request to review</option>
                 {pendingRequests.map(request => (
                   <option key={request.RequestID} value={request.RequestID}>
                     #{request.RequestID} · {requestFoodName(request)}
@@ -271,28 +298,32 @@ export default function HealthCoach({ user }) {
                 ))}
               </select>
 
-              <label htmlFor="suggested-food">Suggested food</label>
+              <label htmlFor="suggested-food">Recommended alternative</label>
               <select
                 id="suggested-food"
                 value={suggestedFoodId}
                 onChange={e => setSuggestedFoodId(e.target.value)}
                 required
               >
-                <option value="">Select an active food</option>
+                <option value="">Choose from the food catalogue</option>
                 {foods.map(food => (
                   <option key={food.FoodID} value={food.FoodID}>
-                    {food.FoodName} (ID: {food.FoodID})
+                    {food.FoodName}{food.Category ? ` · ${food.Category}` : ""}
                   </option>
                 ))}
               </select>
 
-              <label htmlFor="suggestion-message">Message to user</label>
-              <input
+              <label htmlFor="suggestion-message">A note for the member <span className="coach-optional">OPTIONAL</span></label>
+              <textarea
                 id="suggestion-message"
                 value={suggestionMessage}
                 onChange={e => setSuggestionMessage(e.target.value)}
-                placeholder="Explain your food suggestion..."
+                maxLength={1000}
+                placeholder="For example: This option may suit the member’s preference while keeping the meal balanced."
               />
+              <span className="coach-form-hint">
+                {suggestionMessage.length} of 1,000 characters
+              </span>
 
               <button
                 className="primary-button"
@@ -300,19 +331,22 @@ export default function HealthCoach({ user }) {
                 disabled={submitting || pendingRequests.length === 0 || foods.length === 0}
               >
                 <Send size={16} />
-                {submitting ? "Submitting..." : "Submit suggestion"}
+                {submitting ? "Sending recommendation…" : "Send recommendation"}
               </button>
+              {foods.length === 0 && !loading && (
+                <p className="form-message">The food catalogue is unavailable at the moment. Please try again shortly.</p>
+              )}
             </form>
           ) : (
             <form className="request-form" onSubmit={handleRequest}>
-              <label htmlFor="replacement-meal">Food item</label>
+              <label htmlFor="replacement-meal">Meal to update</label>
               <select
                 id="replacement-meal"
                 value={selectedMealId}
                 onChange={e => setSelectedMealId(e.target.value)}
                 required
               >
-                <option value="">Select a logged meal</option>
+                <option value="">Choose a meal from your journal</option>
                 {meals.map(meal => (
                   <option key={meal.id} value={meal.id}>
                     {meal.foodName} - {meal.mealType} ({meal.date})
@@ -320,19 +354,37 @@ export default function HealthCoach({ user }) {
                 ))}
               </select>
 
-              <label htmlFor="replacement-reason">Reason</label>
+              <label htmlFor="replacement-reason">What would you like to change?</label>
               <select
                 id="replacement-reason"
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 required
               >
-                <option value="">Select reason</option>
-                <option>Food preference</option>
+                <option value="">Choose what best describes it</option>
+                <option>Personal preference</option>
                 <option>Allergy or intolerance</option>
-                <option>Food not available</option>
-                <option>Other</option>
+                <option>Not readily available</option>
+                <option>Something else</option>
               </select>
+
+              <label htmlFor="requested-food">An alternative you have in mind <span className="coach-optional">OPTIONAL</span></label>
+              <select
+                id="requested-food"
+                value={requestedFoodId}
+                onChange={e => setRequestedFoodId(e.target.value)}
+                disabled={foods.length === 0}
+              >
+                <option value="">I’m open to a recommendation</option>
+                {foods.map(food => (
+                  <option key={food.FoodID} value={food.FoodID}>
+                    {food.FoodName}{food.Category ? ` · ${food.Category}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="coach-form-hint">
+                Your coach will consider your preference and may recommend another suitable choice.
+              </p>
 
               <button
                 className="primary-button"
@@ -340,11 +392,19 @@ export default function HealthCoach({ user }) {
                 disabled={submitting || meals.length === 0}
               >
                 <Send size={16} />
-                {submitting ? "Submitting..." : "Submit request"}
+                {submitting ? "Sending your request…" : "Send request"}
               </button>
 
               {meals.length === 0 && !loading && (
-                <p className="form-message">Log a meal before requesting a replacement.</p>
+                <div className="coach-next-step">
+                  <div>
+                    <strong>Start with a meal in your journal</strong>
+                    <p>Once you’ve logged a meal, choose it here, tell your coach what you’d like to change, and send a request.</p>
+                  </div>
+                  <button className="small-button" type="button" onClick={() => setActivePage?.("Daily Meal Tracker")}>
+                    Open meal tracker
+                  </button>
+                </div>
               )}
             </form>
           )}
@@ -353,14 +413,15 @@ export default function HealthCoach({ user }) {
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h3>{isCoach ? "Coach queue" : "My request summary"}</h3>
+              <span className="coach-section-label">{isCoach ? "AT A GLANCE" : "YOUR PROGRESS"}</span>
+              <h3>{isCoach ? "Request overview" : "Your request overview"}</h3>
               <p>
                 {isCoach
-                  ? "Live pending work and previously reviewed requests."
-                  : "Your personal request and suggestion status."}
+                  ? "A clear view of member requests and recommendations."
+                  : "Keep track of your requests and coach recommendations."}
               </p>
             </div>
-            <HeartPulse size={22} />
+            <span className="coach-heading-icon"><HeartPulse size={19} /></span>
           </div>
 
           <div className="request-stats">
@@ -370,11 +431,11 @@ export default function HealthCoach({ user }) {
             </div>
             <div>
               <strong>{isCoach ? reviewedRequests.length : pendingCount}</strong>
-              <span>{isCoach ? "Reviewed this session" : "Pending"}</span>
+              <span>{isCoach ? "Awaiting response" : "Awaiting review"}</span>
             </div>
             <div>
               <strong>{isCoach ? foods.length : suggestionsCount}</strong>
-              <span>{isCoach ? "Active foods" : "Suggestions"}</span>
+              <span>{isCoach ? "Foods to recommend" : "New suggestions"}</span>
             </div>
           </div>
         </section>
@@ -383,29 +444,46 @@ export default function HealthCoach({ user }) {
       <section className="panel requests-panel">
         <div className="panel-heading">
           <div>
-            <h3>{isCoach ? "Pending Food Replacement Requests" : "My requests and suggestions"}</h3>
+            <span className="coach-section-label">{isCoach ? "THE REQUEST QUEUE" : "YOUR WELLNESS JOURNEY"}</span>
+            <h3>{isCoach ? "Member requests" : "Requests & recommendations"}</h3>
             <p>
               {isCoach
-                ? "Review requester details, food, reason and request status."
-                : "Review your alternatives and their current status."}
+                ? "Each request is an opportunity to offer thoughtful, individual support."
+                : "See what you’ve shared and review the guidance from your coach."}
             </p>
           </div>
+          <button
+            className="small-button"
+            type="button"
+            onClick={loadData}
+            disabled={loading || submitting}
+            aria-label="Refresh health coach requests"
+          >
+            <RefreshCw size={14} /> Refresh list
+          </button>
         </div>
 
-        {pendingRequests.length === 0 && !loading && (
-          <p className="form-message">
-            {isCoach ? "No pending requests at the moment." : "You have no food replacement requests yet."}
-          </p>
+        {visibleRequests.length === 0 && !loading && (
+          <div className="coach-empty-guide">
+            <span className="coach-empty-guide-icon"><Leaf size={18} /></span>
+            <div>
+              <strong>{isCoach ? "Your request queue is ready" : "Your coaching journey starts here"}</strong>
+              <p>{isCoach
+                ? "Member requests will appear here after they log a meal and ask for an alternative. Review the reason, choose a suitable catalogue option, and add a thoughtful note."
+                : "Log a meal, then request an alternative if a food does not suit your preferences, availability or needs. Your coach’s recommendation will appear here for you to review."}</p>
+              {!isCoach && <button className="small-button" type="button" onClick={() => setActivePage?.("Daily Meal Tracker")}>Log a meal to begin</button>}
+            </div>
+          </div>
         )}
 
-        {pendingRequests.map(request => {
+        {visibleRequests.map(request => {
           const status = requestStatus(request);
           const suggestedFood = request.Suggestion?.SuggestedFood?.FoodName;
           const canAccept = !isCoach && request.Suggestion?.Status === "Pending";
 
           return (
             <div className="request-row" key={request.RequestID}>
-              <div className="request-food-icon">🥗</div>
+              <div className="request-food-icon" aria-hidden="true"><Leaf size={19} /></div>
 
               <div className="request-info">
                 <strong>
@@ -414,15 +492,21 @@ export default function HealthCoach({ user }) {
                     : requestFoodName(request)}
                 </strong>
                 {isCoach && request.RequestedFood?.FoodName && (
-                  <span>Requested alternative: {request.RequestedFood.FoodName}</span>
+                  <span>Member’s preference: {request.RequestedFood.FoodName}</span>
                 )}
                 {isCoach && request.User?.FullName && (
                   <span>Requested by: {request.User.FullName}</span>
                 )}
-                <span>Reason: {request.Reason || "Not provided"}</span>
+                {!isCoach && request.RequestedFood?.FoodName && (
+                  <span>Preferred alternative: {request.RequestedFood.FoodName}</span>
+                )}
+                <span>Reason: {request.Reason || "Not specified"}</span>
+                {formatRequestDate(request.CreatedAt) && (
+                  <span>Requested {formatRequestDate(request.CreatedAt)}</span>
+                )}
                 {!isCoach && (
                   <span>
-                    Suggested alternative: {suggestedFood || "Awaiting coach suggestion"}
+                    {suggestedFood ? `Coach recommendation: ${suggestedFood}` : "Your coach is reviewing this request"}
                     {request.Suggestion?.Message ? ` · ${request.Suggestion.Message}` : ""}
                   </span>
                 )}
@@ -430,11 +514,7 @@ export default function HealthCoach({ user }) {
 
               <div className="request-actions">
                 <span className={`status ${statusClass(status)}`}>
-                  {status === "Accepted" ? (
-                    <CheckCircle2 size={14} />
-                  ) : (
-                    <Clock size={14} />
-                  )}
+                  <RequestStatusIcon status={status} />
                   {status}
                 </span>
 
@@ -444,7 +524,7 @@ export default function HealthCoach({ user }) {
                     type="button"
                     onClick={() => setSelectedRequestId(String(request.RequestID))}
                   >
-                    Review
+                    Review request
                   </button>
                 )}
 
@@ -477,13 +557,14 @@ export default function HealthCoach({ user }) {
           <>
             <div className="panel-heading">
               <div>
-                <h3>Reviewed Requests</h3>
-                <p>Requests waiting for the member's response.</p>
+                <span className="coach-section-label">WITH THE MEMBER</span>
+                <h3>Recommendations shared</h3>
+                <p>These members are considering their coach’s recommendation.</p>
               </div>
             </div>
             {reviewedRequests.map(request => (
               <div className="request-row" key={request.RequestID}>
-                <div className="request-food-icon">🥗</div>
+                <div className="request-food-icon" aria-hidden="true"><Leaf size={19} /></div>
                 <div className="request-info">
                   <strong>
                     Request #{request.RequestID}: {requestFoodName(request)}
@@ -491,7 +572,10 @@ export default function HealthCoach({ user }) {
                   {request.User?.FullName && (
                     <span>Requested by: {request.User.FullName}</span>
                   )}
-                  <span>Reason: {request.Reason || "Not provided"}</span>
+                  <span>Reason: {request.Reason || "Not specified"}</span>
+                  {request.RequestedFood?.FoodName && (
+                    <span>Member's preferred alternative: {request.RequestedFood.FoodName}</span>
+                  )}
                   <span>
                     Suggested alternative: {request.Suggestion?.SuggestedFood?.FoodName || "Unavailable"}
                     {request.Suggestion?.Message ? ` · ${request.Suggestion.Message}` : ""}
@@ -499,7 +583,7 @@ export default function HealthCoach({ user }) {
                 </div>
                 <div className="request-actions">
                   <span className={`status ${statusClass(request.Status)}`}>
-                    <CheckCircle2 size={14} />
+                    <RequestStatusIcon status={request.Status} />
                     {request.Status}
                   </span>
                 </div>
@@ -511,13 +595,14 @@ export default function HealthCoach({ user }) {
           <>
             <div className="panel-heading">
               <div>
-                <h3>Resolved Requests</h3>
-                <p>Requests accepted or rejected by members.</p>
+                <span className="coach-section-label">CLOSED REQUESTS</span>
+                <h3>Resolved requests</h3>
+                <p>Recommendations accepted or declined by members.</p>
               </div>
             </div>
             {resolvedRequests.map(request => (
               <div className="request-row" key={request.RequestID}>
-                <div className="request-food-icon">🥗</div>
+                <div className="request-food-icon" aria-hidden="true"><Leaf size={19} /></div>
                 <div className="request-info">
                   <strong>
                     Request #{request.RequestID}: {requestFoodName(request)}
@@ -525,7 +610,10 @@ export default function HealthCoach({ user }) {
                   {request.User?.FullName && (
                     <span>Requested by: {request.User.FullName}</span>
                   )}
-                  <span>Reason: {request.Reason || "Not provided"}</span>
+                  <span>Reason: {request.Reason || "Not specified"}</span>
+                  {request.RequestedFood?.FoodName && (
+                    <span>Member’s preferred alternative: {request.RequestedFood.FoodName}</span>
+                  )}
                   <span>
                     Suggested alternative: {request.Suggestion?.SuggestedFood?.FoodName || "Unavailable"}
                     {request.Suggestion?.Message ? ` · ${request.Suggestion.Message}` : ""}
@@ -533,7 +621,7 @@ export default function HealthCoach({ user }) {
                 </div>
                 <div className="request-actions">
                   <span className={`status ${statusClass(request.Status)}`}>
-                    <CheckCircle2 size={14} />
+                    <RequestStatusIcon status={request.Status} />
                     {request.Status}
                   </span>
                 </div>
@@ -543,30 +631,41 @@ export default function HealthCoach({ user }) {
         )}
       </section>
 
-      <section className="panel chat-panel">
+      <section className="panel coach-guidance-panel">
         <div className="panel-heading">
           <div>
-            <h3><MessageCircle size={19} /> NutriPath Assistant</h3>
-            <p>Direct chat is not connected yet</p>
+            <span className="coach-section-label">A BETTER WAY FORWARD</span>
+            <h3><ShieldCheck size={19} /> {isCoach ? "Care that puts people first" : "Make every recommendation your own"}</h3>
+            <p>Practical, considered support—always shaped around the person.</p>
           </div>
         </div>
 
-        <div className="chat-messages">
-          <div className="chat-message coach">
-            Use a food replacement request to contact your coach. Direct messaging is currently unavailable.
-          </div>
+        <div className="coach-guidance-grid">
+          <article>
+            <strong>{isCoach ? "Listen to the context" : "Start with what matters"}</strong>
+            <p>
+              {isCoach
+                ? "Consider each member’s preferences and circumstances before recommending a change."
+                : "Tell your coach about the preference, availability concern or intolerance behind your request."}
+            </p>
+          </article>
+          <article>
+            <strong>{isCoach ? "Recommend with purpose" : "Choose what feels right"}</strong>
+            <p>
+              {isCoach
+                ? "Offer an achievable option from the catalogue, with a clear and supportive note."
+                : "Consider how the recommendation fits your needs. You can accept it or decline it."}
+            </p>
+          </article>
+          <article>
+            <strong>Keep wellbeing in focus</strong>
+            <p>
+              Food suggestions are general guidance, not medical advice. For allergies or specific health concerns,
+              speak with a qualified health professional.
+            </p>
+          </article>
         </div>
-
-        <form className="chat-input">
-          <input
-            disabled
-            placeholder="Direct messaging is not available yet"
-          />
-          <button className="primary-button" type="button" disabled>
-            <Send size={17} />
-          </button>
-        </form>
       </section>
-    </>
+    </div>
   );
 }

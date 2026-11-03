@@ -33,4 +33,60 @@ export const foodCatalog = [
   { id: "raita", name: "Vegetable raita", category: "Dinner", emoji: "🥣", servingGrams: 150, servingLabel: "1 bowl", calories: 100, protein: 5, carbs: 10, fats: 4 }
 ];
 
+function catalogKey(value) {
+  return String(value || "").trim().toLocaleLowerCase();
+}
+
+function getServingGrams(servingSize, fallback = 100) {
+  const grams = servingSize.match(/(\d+(?:\.\d+)?)\s*(?:g|grams?)\b/i);
+  const value = grams ? Number(grams[1]) : fallback;
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+export function getFoodOptions(items) {
+  const catalogById = new Map(foodCatalog.map(food => [catalogKey(food.id), food]));
+  const serverFoodsByCatalogId = new Map();
+  const additionalFoods = [];
+
+  items.forEach(item => {
+    const catalogFood = catalogById.get(catalogKey(item.CatalogID));
+    if (catalogFood) {
+      serverFoodsByCatalogId.set(catalogKey(item.CatalogID), item);
+      return;
+    }
+
+    const servingSize = item.ServingSize || "100 g";
+    additionalFoods.push({
+      id: item.CatalogID || `food-${item.FoodID}`,
+      name: item.FoodName,
+      category: item.Category || "",
+      emoji: "🥗",
+      servingGrams: getServingGrams(servingSize),
+      servingLabel: servingSize,
+      calories: Number(item.Calories),
+      protein: Number(item.Protein),
+      carbs: Number(item.Carbs),
+      fats: Number(item.Fat)
+    });
+  });
+
+  const builtInFoods = foodCatalog.map(food => {
+    const item = serverFoodsByCatalogId.get(catalogKey(food.id));
+    if (!item) return food;
+    return {
+      ...food,
+      name: item.FoodName,
+      category: item.Category || food.category,
+      servingGrams: getServingGrams(item.ServingSize || food.servingLabel, food.servingGrams),
+      servingLabel: item.ServingSize || food.servingLabel,
+      calories: Number(item.Calories),
+      protein: Number(item.Protein),
+      carbs: Number(item.Carbs),
+      fats: Number(item.Fat)
+    };
+  });
+
+  return [...builtInFoods, ...additionalFoods];
+}
+
 export const mealTypes = ["Breakfast", "Lunch", "Snacks", "Dinner"];
