@@ -37,6 +37,15 @@ database must be provisioned with the legacy API tables and the journey and
 nutrition tables/profile columns modeled by the application before using those
 routes. No real database schema or records are changed by the integration or its
 tests; the API tests use an isolated in-memory SQLite database.
+For an existing default `NutriPathDB` database, run
+`docs/sql/profile_dietary_restrictions_migration.sql` before registering or
+logging in. It adds the nullable profile columns used for intolerances and
+additional food restrictions. The separate
+`docs/sql/meal_safety_profile_weight_migration.sql` is guarded for the QA
+`IMENE/sampledb` database and must not be used against `NutriPathDB`.
+Before creating a health journey in an existing `NutriPathDB`, also run
+`docs/sql/nutripathdb_journey_baseline_migration.sql`. It adds the starting-weight
+baseline flag and its per-user uniqueness guard to `dbo.weight_history`.
 For existing SQL Server databases, run
 `docs/sql/repair_food_change_requests_mealitem_nullable.sql` against `NutriPathDB`
 before submitting food-alternative requests from nutrition logs. These requests

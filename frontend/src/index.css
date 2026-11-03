@@ -11278,6 +11278,341 @@ textarea:focus-visible {
   font-family: "Manrope", "Segoe UI", sans-serif;
 }
 
+.dashboard-page .welcome-row {
+  margin-bottom: 24px;
+}
+
+.dashboard-page .welcome-row h1 {
+  letter-spacing: -1.2px;
+}
+
+.dashboard-page .date-pill {
+  border-color: #e6ebe3;
+  box-shadow: 0 5px 16px #20352b08;
+}
+
+.dashboard-page .section-heading {
+  margin-top: 27px;
+  margin-bottom: 15px;
+}
+
+.dashboard-page .section-heading h2,
+.dashboard-page .panel-heading h3 {
+  color: #233f2e;
+  letter-spacing: -.3px;
+}
+
+.dashboard-page .section-heading p,
+.dashboard-page .panel-heading p {
+  color: #78867d;
+}
+
+.dashboard-page .stats-grid {
+  gap: 14px;
+}
+
+.dashboard-page .stat-card,
+.dashboard-page .panel {
+  border-color: #e8ece6;
+  box-shadow: 0 8px 24px #21372a08;
+}
+
+.dashboard-page .stat-card {
+  min-height: 137px;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.dashboard-page .stat-card:hover,
+.dashboard-page .panel:hover {
+  border-color: #dbe5d8;
+  box-shadow: 0 12px 30px #21372a0d;
+}
+
+.dashboard-page .stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.dashboard-page .stat-card h2 {
+  color: #243f30;
+  letter-spacing: -.6px;
+}
+
+.dashboard-page .stat-icon {
+  border-radius: 13px;
+}
+
+.dashboard-page .progress-track {
+  height: 7px;
+  background: #f0f2ed;
+}
+
+.dashboard-page .dashboard-journey-banner {
+  min-height: 190px;
+  padding: 27px 32px;
+  border-radius: 18px;
+}
+
+.dashboard-page .dashboard-journey-copy h2 {
+  font-size: clamp(20px, 2vw, 25px);
+  letter-spacing: -.55px;
+}
+
+.dashboard-page .dashboard-journey-ring {
+  width: 116px;
+  height: 116px;
+}
+
+.dashboard-page .dashboard-journey-ring strong {
+  width: 92px;
+  height: 92px;
+  font-size: 22px;
+}
+
+.dashboard-page .dashboard-week-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(250px, 1fr);
+  align-items: stretch;
+  margin-top: 16px;
+}
+
+.dashboard-week-panel,
+.dashboard-week-focus {
+  min-width: 0;
+}
+
+.dashboard-week-panel .panel-heading {
+  margin-bottom: 14px;
+}
+
+.dashboard-week-average {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.dashboard-week-average strong {
+  color: #315d43;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+.dashboard-week-average span {
+  color: #89958b;
+  font-size: 9px;
+}
+
+.dashboard-week-chart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  height: 174px;
+  padding-top: 2px;
+}
+
+.dashboard-week-day {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 20px 126px 22px;
+  justify-items: center;
+  align-items: end;
+  gap: 2px;
+}
+
+.dashboard-week-value {
+  max-width: 100%;
+  overflow: hidden;
+  color: #748278;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-week-bar-track {
+  width: min(100%, 34px);
+  height: 126px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  border-radius: 7px 7px 3px 3px;
+  background: #f1f5ef;
+}
+
+.dashboard-week-bar-track i {
+  width: 100%;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #82a76c, #477b54);
+  animation: dashboard-bar-arrive .6s cubic-bezier(.2, .75, .3, 1) both;
+  transform-origin: bottom;
+}
+
+.dashboard-week-day:last-child .dashboard-week-bar-track i {
+  background: linear-gradient(180deg, #a6bd6d, #668c4c);
+}
+
+.dashboard-week-label {
+  align-self: center;
+  color: #758279;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.dashboard-week-goal {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 24px;
+  left: 0;
+  border-top: 1px dashed #c9934b;
+  pointer-events: none;
+}
+
+.dashboard-week-goal span {
+  position: absolute;
+  top: -15px;
+  right: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #fff;
+  color: #ad7d3e;
+  font-size: 8px;
+}
+
+.dashboard-week-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 3px;
+  color: #89958b;
+  font-size: 9px;
+}
+
+.dashboard-week-focus .panel-heading {
+  margin-bottom: 18px;
+}
+
+.dashboard-macro-row {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.dashboard-macro-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #66776d;
+  font-size: 11px;
+}
+
+.dashboard-macro-row strong {
+  color: #304d39;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-macro-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #f0f3ed;
+}
+
+.dashboard-macro-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.dashboard-macro-track .protein {
+  background: linear-gradient(90deg, #81a969, #527e50);
+}
+
+.dashboard-macro-track .carbs {
+  background: linear-gradient(90deg, #eac47d, #cf9952);
+}
+
+.dashboard-macro-track .fats {
+  background: linear-gradient(90deg, #92b8ce, #638fa8);
+}
+
+.dashboard-macro-note {
+  margin-top: 4px;
+  color: #919b92;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.dashboard-page .dashboard-next-steps {
+  margin-top: 24px;
+}
+
+.dashboard-page .dashboard-action-card {
+  border-color: #e8ece6;
+  box-shadow: 0 4px 14px #21372a05;
+}
+
+.dashboard-page .dashboard-meal-summary-grid,
+.dashboard-page .dashboard-weight-row {
+  gap: 16px;
+}
+
+@keyframes dashboard-bar-arrive {
+  from {
+    transform: scaleY(.18);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-page .dashboard-week-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(220px, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-page .dashboard-week-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-page .dashboard-journey-banner {
+    padding: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-page .welcome-row {
+    align-items: flex-start;
+  }
+
+  .dashboard-page .date-pill {
+    padding: 8px 10px;
+    font-size: 9px;
+  }
+
+  .dashboard-page .dashboard-journey-banner {
+    gap: 12px;
+    padding: 17px;
+  }
+
+  .dashboard-page .dashboard-journey-ring {
+    width: 66px;
+    height: 66px;
+  }
+
+  .dashboard-page .dashboard-journey-ring strong {
+    width: 52px;
+    height: 52px;
+    font-size: 15px;
+  }
+
+  .dashboard-week-chart {
+    gap: 4px;
+  }
+}
+
 .sidebar .nav-item {
   font-weight: 650;
   letter-spacing: -.15px;

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight, CalendarDays, ClipboardList, Clock, Droplets, Flame,
-  Footprints, HeartPulse, Scale, Sparkles, Target, TrendingDown, Utensils,
+  HeartPulse, Scale, Sparkles, Target, TrendingDown, Utensils,
   Weight
 } from "lucide-react";
 import api from "../services/api";
@@ -11,6 +11,10 @@ import { getNutritionData } from "../services/nutrition";
 function todayKey() {
   const today = new Date();
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function buildInsight(meals, totals, goal, water) {
@@ -53,6 +57,44 @@ function DashboardWeightChart({ journey }) {
   </div>;
 }
 
+function WeeklyNutritionChart({ days, calorieGoal }) {
+  const loggedDays = days.filter(day => day.calories > 0);
+  const average = loggedDays.length
+    ? Math.round(loggedDays.reduce((sum, day) => sum + day.calories, 0) / loggedDays.length)
+    : 0;
+  const scale = Math.max(calorieGoal, ...days.map(day => day.calories), 1) * 1.12;
+
+  return <section className="panel dashboard-week-panel">
+    <div className="panel-heading">
+      <div><h3>Your week at a glance</h3><p>Calories from your food journal</p></div>
+      <div className="dashboard-week-average">
+        <strong>{average ? average.toLocaleString() : "—"}</strong>
+        <span>avg. kcal / logged day</span>
+      </div>
+    </div>
+    <div
+      className="dashboard-week-chart"
+      role="img"
+      aria-label={`Daily calories for the last seven days. ${loggedDays.length} days recorded${average ? `, averaging ${average} calories on recorded days` : ""}.`}
+    >
+      <div className="dashboard-week-goal" style={{ height: `${(calorieGoal / scale) * 126}px` }}><span>Daily goal</span></div>
+      {days.map(day => (
+        <div className="dashboard-week-day" key={day.key} title={`${day.date}: ${day.calories.toLocaleString()} kcal`}>
+          <span className="dashboard-week-value">{day.calories ? day.calories.toLocaleString() : "—"}</span>
+          <div className="dashboard-week-bar-track">
+            <i style={{ height: `${day.calories ? Math.max((day.calories / scale) * 100, 3) : 0}%` }} />
+          </div>
+          <span className="dashboard-week-label">{day.label}</span>
+        </div>
+      ))}
+    </div>
+    <div className="dashboard-week-footer">
+      <span>{calorieGoal.toLocaleString()} kcal daily goal</span>
+      <span>{loggedDays.length} of 7 days recorded</span>
+    </div>
+  </section>;
+}
+
 export default function Dashboard({ user, setActivePage }) {
   const [journey, setJourney] = useState(null);
   const [mealData, setMealData] = useState(null);
@@ -77,17 +119,34 @@ export default function Dashboard({ user, setActivePage }) {
     carbs: sum.carbs + meal.carbs,
     fats: sum.fats + meal.fats
   }), { calories: 0, protein: 0, carbs: 0, fats: 0 }), [meals]);
+  const week = useMemo(() => {
+    const caloriesByDate = new Map();
+    mealData?.meals.forEach(meal => {
+      caloriesByDate.set(meal.date, (caloriesByDate.get(meal.date) || 0) + meal.calories);
+    });
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date();
+      day.setDate(day.getDate() - (6 - index));
+      return {
+        key: dateKey(day),
+        label: day.toLocaleDateString(undefined, { weekday: "short" }),
+        date: day.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        calories: Math.round(caloriesByDate.get(dateKey(day)) || 0)
+      };
+    });
+  }, [mealData]);
   const water = mealData?.waterByDate[date] || 0;
   const calorieGoal = mealData?.calorieGoal || 2000;
   const waterGoal = mealData?.waterGoal || 2500;
   const firstName = user.full_name.split(" ")[0] || "there";
-  const mealCount = new Set(meals.map(meal => meal.mealType)).size;
+  const mealCount = meals.length;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  return <>
+  return <div className="dashboard-page">
     <div className="welcome-row">
-      <div><span className="eyebrow">YOUR PERSONAL HEALTH SPACE</span><h1>{greeting}, {firstName} <span>🌿</span></h1><p>Your journey is yours. Let’s see how you’re doing today.</p></div>
+      <div><span className="eyebrow">YOUR PERSONAL HEALTH SPACE</span><h1>{greeting}, {firstName}</h1><p>Your journey is yours. Let’s see how you’re doing today.</p></div>
       <div className="date-pill"><CalendarDays size={15} />{new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div>
     </div>
 
@@ -103,7 +162,25 @@ export default function Dashboard({ user, setActivePage }) {
       <div className="stat-card"><div className="stat-top"><div><p className="muted">Calories consumed</p><h2>{Math.round(totals.calories).toLocaleString()} <small>kcal</small></h2></div><div className="stat-icon orange"><Flame /></div></div><div className="progress-track"><div className="progress-fill orange" style={{ width: `${Math.min(totals.calories / calorieGoal * 100, 100)}%` }} /></div><span className="stat-note">{calorieGoal.toLocaleString()} kcal daily goal</span></div>
       <div className="stat-card"><div className="stat-top"><div><p className="muted">Current weight</p><h2>{journey ? journey.goal.current_weight_kg : "—"} <small>kg</small></h2></div><div className="stat-icon green"><Weight /></div></div><span className="stat-note">{journey ? `Target ${journey.goal.target_weight_kg} kg` : "Your journey profile"}</span><button className="dashboard-card-link" type="button" onClick={() => setActivePage("Weight Journey")}>View weight journey <ArrowUpRight size={13} /></button></div>
       <div className="stat-card"><div className="stat-top"><div><p className="muted">Water intake</p><h2>{(water / 1000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} <small>L</small></h2></div><div className="stat-icon blue"><Droplets /></div></div><div className="progress-track"><div className="progress-fill blue" style={{ width: `${Math.min(water / waterGoal * 100, 100)}%` }} /></div><span className="stat-note">{(waterGoal / 1000).toFixed(1)} L daily goal</span></div>
-      <div className="stat-card"><div className="stat-top"><div><p className="muted">Exercise</p><h2 className="dashboard-exercise-title">Not logged</h2></div><div className="stat-icon purple"><Footprints /></div></div><span className="stat-note">{journey?.profile.exercise_preferences ? `Preference: ${journey.profile.exercise_preferences}` : "No exercise entries recorded"}</span></div>
+      <div className="stat-card"><div className="stat-top"><div><p className="muted">Protein today</p><h2>{Math.round(totals.protein)} <small>g</small></h2></div><div className="stat-icon purple"><HeartPulse /></div></div><span className="stat-note">From your logged meals</span></div>
+    </div>
+
+    <div className="dashboard-grid dashboard-week-grid">
+      <WeeklyNutritionChart days={week} calorieGoal={calorieGoal} />
+      <section className="panel dashboard-week-focus">
+        <div className="panel-heading"><div><h3>Today’s nutrition</h3><p>Macro totals from your food journal</p></div><Sparkles className="orange-text" /></div>
+        {[
+          { label: "Protein", value: totals.protein, color: "protein" },
+          { label: "Carbohydrates", value: totals.carbs, color: "carbs" },
+          { label: "Fat", value: totals.fats, color: "fats" }
+        ].map(macro => (
+          <div className="dashboard-macro-row" key={macro.label}>
+            <div><span>{macro.label}</span><strong>{Math.round(macro.value)}g</strong></div>
+            <div className="dashboard-macro-track"><i className={macro.color} style={{ width: `${totals.protein + totals.carbs + totals.fats ? macro.value / (totals.protein + totals.carbs + totals.fats) * 100 : 0}%` }} /></div>
+          </div>
+        ))}
+        <p className="dashboard-macro-note">Distribution reflects logged macros, not a prescribed target.</p>
+      </section>
     </div>
 
     <section className="dashboard-next-steps" aria-labelledby="dashboard-next-steps-title">
@@ -163,7 +240,7 @@ export default function Dashboard({ user, setActivePage }) {
       <section className="panel"><div className="panel-heading"><div><h3>Your journey milestones</h3><p>Achievements from recorded progress</p></div><Target className="orange-text" /></div>{journey?.achievements.length ? <div className="dashboard-milestones">{journey.achievements.slice(-3).reverse().map(item => <div key={item.code}><span><TrendingDown size={15} /></span><div><strong>{item.title}</strong><small>{item.description}</small></div><CheckIcon /></div>)}</div> : <p className="dashboard-not-logged">Your first milestone will appear when you begin recording progress.</p>}<button className="dashboard-card-link" type="button" onClick={() => setActivePage("Weight Journey")}>View all milestones <ArrowUpRight size={13} /></button></section>
     </div>
     <section className="panel dashboard-insight dashboard-insight-full"><div className="panel-heading"><div><h3>Nutrition insights</h3><p>Based on your logged data</p></div><Sparkles className="orange-text" /></div><p>{buildInsight(meals, totals, { calorieGoal, waterGoal }, water)}</p><small>Rule-based observation of today’s logged food · Not medical advice</small></section>
-  </>;
+  </div>;
 }
 
 function CheckIcon() {
