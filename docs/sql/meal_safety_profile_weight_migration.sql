@@ -8,8 +8,8 @@ SET ARITHABORT ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 SET NUMERIC_ROUNDABORT OFF;
 
-IF DB_NAME() <> N'sampledb'
-    THROW 51000, 'Refusing migration: the current database must be sampledb.', 1;
+IF DB_NAME() NOT IN (N'sampledb', N'NutriPathDB')
+    THROW 51000, 'Refusing migration: the current database must be sampledb or NutriPathDB.', 1;
 
 IF UPPER(CAST(SERVERPROPERTY('MachineName') AS nvarchar(128))) <> N'IMENE'
     THROW 51001, 'Refusing migration: the SQL Server machine must be IMENE.', 1;
