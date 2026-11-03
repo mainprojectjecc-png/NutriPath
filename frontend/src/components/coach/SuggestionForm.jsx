@@ -1,11 +1,26 @@
 import { useState } from "react";
 
-export default function SuggestionForm({ onSubmit }) {
+export default function SuggestionForm({ onSubmit, disabled }) {
   const [text, setText] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    onSubmit(text.trim());
+    setText("");
+  };
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(text); setText(""); }}>
-      <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Suggest a replacement food" />
-      <button type="submit">Send suggestion</button>
+    <form onSubmit={handleSubmit}>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Suggest a replacement food"
+        disabled={disabled}
+      />
+      <button type="submit" disabled={disabled || !text.trim()}>
+        Send suggestion
+      </button>
     </form>
   );
 }
