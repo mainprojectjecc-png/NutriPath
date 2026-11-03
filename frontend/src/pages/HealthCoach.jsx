@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   HeartPulse, Send, CheckCircle2, Clock, XCircle,
-  Leaf, ThumbsDown, ThumbsUp, RefreshCw, ShieldCheck
+  Leaf, ThumbsDown, ThumbsUp, RefreshCw, ShieldCheck, Search
 } from "lucide-react";
 import {
   acceptFoodReplacementSuggestion,
@@ -76,6 +76,8 @@ export default function HealthCoach({ user, setActivePage }) {
   const [suggestedFoodId, setSuggestedFoodId] = useState("");
   const [reason, setReason] = useState("");
   const [suggestionMessage, setSuggestionMessage] = useState("");
+  const [queueFilter, setQueueFilter] = useState("all");
+  const [queueSearch, setQueueSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -238,11 +240,35 @@ export default function HealthCoach({ user, setActivePage }) {
     ? requests.filter(request => request.Status === "Accepted" || request.Status === "Rejected")
     : [];
   const pendingRequests = requests.filter(request => request.Status === "Pending");
-  const visibleRequests = isCoach ? pendingRequests : requests;
   const suggestionsCount = requests.filter(
     request => request.Suggestion?.Status === "Pending"
   ).length;
   const selectedMealRequest = activeRequestForMeal(requests, selectedMealId);
+  const selectedRequest = requests.find(
+    request => String(request.RequestID) === selectedRequestId
+  );
+  const visibleRequests = requests.filter(request => {
+    const status = requestStatus(request).toLowerCase();
+    const matchesFilter = queueFilter === "all" ||
+      (queueFilter === "pending" && status === "pending") ||
+      (queueFilter === "suggested" && status === "suggested") ||
+      (queueFilter === "resolved" && ["accepted", "rejected"].includes(status));
+    const query = queueSearch.trim().toLowerCase();
+    const matchesSearch = !query || [
+      requestFoodName(request),
+      request.Reason,
+      request.User?.FullName,
+      request.RequestedFood?.FoodName,
+      request.Suggestion?.SuggestedFood?.FoodName
+    ].some(value => typeof value === "string" && value.toLowerCase().includes(query));
+    return matchesFilter && matchesSearch;
+  });
+  const queueFilters = [
+    { id: "all", label: "All requests", count: requests.length },
+    { id: "pending", label: isCoach ? "Needs review" : "Awaiting review", count: pendingCount },
+    { id: "suggested", label: isCoach ? "With member" : "Coach replied", count: isCoach ? reviewedRequests.length : suggestionsCount },
+    { id: "resolved", label: "Resolved", count: resolvedRequests.length || requests.filter(request => ["Accepted", "Rejected"].includes(request.Status)).length }
+  ];
 
   function clearRequestFeedback() {
     setError("");
@@ -328,7 +354,23 @@ export default function HealthCoach({ user, setActivePage }) {
                 ))}
               </select>
 
-              <label htmlFor="suggested-food">Recommended alternative</label>
+                {selectedRequest && selectedRequest.Status === "Pending" && (
+                  <div className="coach-selected-request">
+                    <div className="coach-selected-request-heading">
+                      <span><Leaf size={15} /> Request context</span>
+                      <span>#{selectedRequest.RequestID}</span>
+                    </div>
+                    <strong>{requestFoodName(selectedRequest)}</strong>
+                    <p>{selectedRequest.User?.FullName ? `Requested by ${selectedRequest.User.FullName}` : "Member request"}</p>
+                    <p><b>Reason:</b> {selectedRequest.Reason || "Not specified"}</p>
+                    {selectedRequest.RequestedFood?.FoodName && (
+                      <p><b>Member’s preference:</b> {selectedRequest.RequestedFood.FoodName}</p>
+                    )}
+                    <p className="coach-context-hint">Choose an alternative below and add a note tailored to this request.</p>
+                  </div>
+                )}
+
+                <label htmlFor="suggested-food">Recommended alternative</label>
               <select
                 id="suggested-food"
                 value={suggestedFoodId}
@@ -511,12 +553,42 @@ export default function HealthCoach({ user, setActivePage }) {
           </button>
         </div>
 
+        <div className="coach-queue-controls">
+          <label className="coach-queue-search">
+            <Search size={16} aria-hidden="true" />
+            <span className="sr-only">Search requests</span>
+            <input
+              type="search"
+              value={queueSearch}
+              onChange={event => setQueueSearch(event.target.value)}
+              placeholder={isCoach ? "Search members, foods, or reasons" : "Search foods or recommendations"}
+            />
+          </label>
+          <div className="coach-queue-filters" role="group" aria-label="Filter requests by status">
+            {queueFilters.map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                className={`coach-filter-chip${queueFilter === filter.id ? " is-active" : ""}`}
+                aria-pressed={queueFilter === filter.id}
+                onClick={() => setQueueFilter(filter.id)}
+              >
+                {filter.label}<span>{filter.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {visibleRequests.length === 0 && !loading && (
           <div className="coach-empty-guide">
             <span className="coach-empty-guide-icon"><Leaf size={18} /></span>
             <div>
-              <strong>{isCoach ? "Your request queue is ready" : "Your coaching journey starts here"}</strong>
-              <p>{isCoach
+              <strong>{queueSearch || queueFilter !== "all"
+                ? "No requests match this view"
+                : isCoach ? "Your request queue is ready" : "Your coaching journey starts here"}</strong>
+              <p>{queueSearch || queueFilter !== "all"
+                ? "Try another search or choose a different status filter."
+                : isCoach
                 ? "Member requests will appear here after they log a meal and ask for an alternative. Review the reason, choose a suitable catalogue option, and add a thoughtful note."
                 : "Log a meal, then request an alternative if a food does not suit your preferences, availability or needs. Your coach’s recommendation will appear here for you to review."}</p>
               {!isCoach && <button className="small-button" type="button" onClick={() => setActivePage?.("Daily Meal Tracker")}>Log a meal to begin</button>}
@@ -530,7 +602,15 @@ export default function HealthCoach({ user, setActivePage }) {
           const canAccept = !isCoach && request.Suggestion?.Status === "Pending";
 
           return (
-            <div className="request-row" key={request.RequestID}>
+            <div
+              className={`request-row${isCoach && request.Status === "Pending" ? " is-selectable" : ""}${isCoach && selectedRequestId === String(request.RequestID) ? " is-selected" : ""}`}
+              key={request.RequestID}
+              onClick={() => {
+                if (isCoach && request.Status === "Pending") {
+                  setSelectedRequestId(String(request.RequestID));
+                }
+              }}
+            >
               <div className="request-food-icon" aria-hidden="true"><Leaf size={19} /></div>
 
               <div className="request-info">
@@ -544,6 +624,12 @@ export default function HealthCoach({ user, setActivePage }) {
                 )}
                 {isCoach && request.User?.FullName && (
                   <span>Requested by: {request.User.FullName}</span>
+                )}
+                {isCoach && suggestedFood && (
+                  <span>
+                    Suggested alternative: {suggestedFood}
+                    {request.Suggestion?.Message ? ` · ${request.Suggestion.Message}` : ""}
+                  </span>
                 )}
                 {!isCoach && request.RequestedFood?.FoodName && (
                   <span>Preferred alternative: {request.RequestedFood.FoodName}</span>
@@ -566,11 +652,15 @@ export default function HealthCoach({ user, setActivePage }) {
                   {status}
                 </span>
 
-                {isCoach && (
+                {isCoach && request.Status === "Pending" && (
                   <button
                     className="small-button"
                     type="button"
-                    onClick={() => setSelectedRequestId(String(request.RequestID))}
+                    onClick={event => {
+                      event.stopPropagation();
+                      setSelectedRequestId(String(request.RequestID));
+                      document.getElementById("coach-request")?.focus();
+                    }}
                   >
                     Review request
                   </button>
@@ -601,82 +691,6 @@ export default function HealthCoach({ user, setActivePage }) {
           );
         })}
 
-        {isCoach && reviewedRequests.length > 0 && (
-          <>
-            <div className="panel-heading">
-              <div>
-                <span className="coach-section-label">WITH THE MEMBER</span>
-                <h3>Recommendations shared</h3>
-                <p>These members are considering their coach’s recommendation.</p>
-              </div>
-            </div>
-            {reviewedRequests.map(request => (
-              <div className="request-row" key={request.RequestID}>
-                <div className="request-food-icon" aria-hidden="true"><Leaf size={19} /></div>
-                <div className="request-info">
-                  <strong>
-                    Request #{request.RequestID}: {requestFoodName(request)}
-                  </strong>
-                  {request.User?.FullName && (
-                    <span>Requested by: {request.User.FullName}</span>
-                  )}
-                  <span>Reason: {request.Reason || "Not specified"}</span>
-                  {request.RequestedFood?.FoodName && (
-                    <span>Member's preferred alternative: {request.RequestedFood.FoodName}</span>
-                  )}
-                  <span>
-                    Suggested alternative: {request.Suggestion?.SuggestedFood?.FoodName || "Unavailable"}
-                    {request.Suggestion?.Message ? ` · ${request.Suggestion.Message}` : ""}
-                  </span>
-                </div>
-                <div className="request-actions">
-                  <span className={`status ${statusClass(request.Status)}`}>
-                    <RequestStatusIcon status={request.Status} />
-                    {request.Status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-        {isCoach && resolvedRequests.length > 0 && (
-          <>
-            <div className="panel-heading">
-              <div>
-                <span className="coach-section-label">CLOSED REQUESTS</span>
-                <h3>Resolved requests</h3>
-                <p>Recommendations accepted or declined by members.</p>
-              </div>
-            </div>
-            {resolvedRequests.map(request => (
-              <div className="request-row" key={request.RequestID}>
-                <div className="request-food-icon" aria-hidden="true"><Leaf size={19} /></div>
-                <div className="request-info">
-                  <strong>
-                    Request #{request.RequestID}: {requestFoodName(request)}
-                  </strong>
-                  {request.User?.FullName && (
-                    <span>Requested by: {request.User.FullName}</span>
-                  )}
-                  <span>Reason: {request.Reason || "Not specified"}</span>
-                  {request.RequestedFood?.FoodName && (
-                    <span>Member’s preferred alternative: {request.RequestedFood.FoodName}</span>
-                  )}
-                  <span>
-                    Suggested alternative: {request.Suggestion?.SuggestedFood?.FoodName || "Unavailable"}
-                    {request.Suggestion?.Message ? ` · ${request.Suggestion.Message}` : ""}
-                  </span>
-                </div>
-                <div className="request-actions">
-                  <span className={`status ${statusClass(request.Status)}`}>
-                    <RequestStatusIcon status={request.Status} />
-                    {request.Status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
       </section>
 
       <section className="panel coach-guidance-panel">
