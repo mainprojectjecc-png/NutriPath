@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Leaf, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { Activity, ArrowLeft, Leaf, LockKeyhole, Mail, Sparkles, Sprout, Utensils, UserRound } from "lucide-react";
 import api, { TOKEN_KEY } from "../services/api";
 
 export default function AuthPage({ onAuthenticated, initialMode = "login" }) {
@@ -75,24 +75,38 @@ export default function AuthPage({ onAuthenticated, initialMode = "login" }) {
       : isRegistration ? "Create your personal space for thoughtful, lasting wellbeing." : "Sign in to continue your wellness journey.";
 
   return (
-    <main className="journey-auth-page">
+    <main className={`journey-auth-page${isRegistration ? " is-registration" : ""}`}>
       <section className="journey-auth-brand">
         <div className="journey-auth-logo"><span><Leaf size={24} /></span><div><strong>NutriPath</strong><small>HEALTHIER EVERY DAY</small></div></div>
         <div className="journey-auth-pitch">
-          <span className="tracker-eyebrow">WELLBEING, WITH INTENTION</span>
-          <h1>Your health.<br />Your way forward.</h1>
-          <p>Thoughtful tools and personal guidance to help healthy habits feel natural, every day.</p>
+          <span className="tracker-eyebrow">{isRegistration ? "A FRESH START, YOUR WAY" : "WELLBEING, WITH INTENTION"}</span>
+          <h1>{isRegistration ? <>Make room for<br /><em>feeling your best.</em></> : <>Your health.<br />Your way forward.</>}</h1>
+          <p>{isRegistration ? "A little progress, a lot more possibility. Build a healthier rhythm around the life you already live." : "Thoughtful tools and personal guidance to help healthy habits feel natural, every day."}</p>
         </div>
+        {isRegistration && (
+          <div className="journey-auth-illustration" aria-hidden="true">
+            <div className="journey-auth-illustration-top"><span><Sparkles size={14} /> YOUR WELLNESS MIX</span><small>01 / 03</small></div>
+            <div className="journey-auth-orbit">
+              <span className="journey-auth-orbit-ring" />
+              <span className="journey-auth-orbit-item journey-auth-orbit-food"><Utensils size={17} /></span>
+              <span className="journey-auth-orbit-item journey-auth-orbit-move"><Activity size={17} /></span>
+              <span className="journey-auth-orbit-item journey-auth-orbit-grow"><Sparkles size={16} /></span>
+              <span className="journey-auth-orbit-center"><Sprout size={28} /></span>
+            </div>
+            <div className="journey-auth-illustration-bottom"><span>Small steps add up</span><i><span /></i><small>your pace</small></div>
+          </div>
+        )}
         <div className="journey-auth-note"><span>✦</span><p>A considered approach to everyday nutrition, movement and lasting wellbeing.</p></div>
       </section>
 
       <section className="journey-auth-main">
-        <form className="journey-auth-card" onSubmit={submit}>
+        <form className={`journey-auth-card${isRegistration ? " is-registration" : ""}`} onSubmit={submit}>
           <div className="journey-auth-mobile-logo"><Leaf size={21} /> NutriPath</div>
           {mode !== "login" && mode !== "register" && <button className="journey-auth-back" type="button" onClick={() => changeMode("login")}><ArrowLeft size={15} /> Back to sign in</button>}
-          <span className="tracker-eyebrow">{isRegistration ? "GET STARTED" : mode === "login" ? "YOUR HEALTH SPACE" : "ACCOUNT SUPPORT"}</span>
+          <span className="tracker-eyebrow">{isRegistration ? "YOUR NEXT CHAPTER STARTS HERE" : mode === "login" ? "YOUR HEALTH SPACE" : "ACCOUNT SUPPORT"}</span>
           <h2>{title}</h2>
           <p className="journey-auth-description">{description}</p>
+          {isRegistration && <div className="journey-auth-register-prompt"><Sparkles size={15} /><span>Start with what matters to you. The rest can grow from there.</span></div>}
 
           {isRegistration && <label className="journey-auth-field"><span>Full name</span><div><UserRound size={17} /><input autoComplete="name" value={fullName} onChange={event => setFullName(event.target.value)} minLength="2" maxLength="120" placeholder="Your name" required /></div></label>}
           {mode !== "reset" && <label className="journey-auth-field"><span>Email address</span><div><Mail size={17} /><input type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} maxLength="320" placeholder="you@example.com" required /></div></label>}

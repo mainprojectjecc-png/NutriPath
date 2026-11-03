@@ -11621,3 +11621,349 @@ textarea:focus-visible {
 .sidebar .nav-item.active {
   font-weight: 800;
 }
+
+.journey-auth-page.is-registration {
+  grid-template-columns: minmax(360px, .92fr) minmax(480px, 1.08fr);
+  background:
+    radial-gradient(ellipse at 82% 10%, #e8eddc 0, transparent 34%),
+    #f6f5ee;
+}
+
+.journey-auth-page.is-registration .journey-auth-brand {
+  justify-content: space-between;
+  padding: clamp(28px, 4.2vw, 58px);
+  background:
+    radial-gradient(ellipse at 84% 47%, #dce8cb99, transparent 38%),
+    radial-gradient(ellipse at 8% 95%, #e8dfc24d, transparent 34%),
+    linear-gradient(150deg, #f1f3e8, #f8f6ed);
+}
+
+.journey-auth-page.is-registration .journey-auth-brand::after {
+  width: 430px;
+  height: 430px;
+  right: -210px;
+  bottom: -240px;
+  border-color: #78905b26;
+  box-shadow: 0 0 0 34px #78905b0b, 0 0 0 72px #78905b08;
+}
+
+.journey-auth-page.is-registration .journey-auth-logo > span {
+  background: #e1e9d4;
+  color: #356044;
+}
+
+.journey-auth-page.is-registration .journey-auth-logo strong {
+  color: #234431;
+}
+
+.journey-auth-page.is-registration .journey-auth-logo small {
+  color: #82917c;
+}
+
+.journey-auth-page.is-registration .journey-auth-pitch {
+  max-width: 470px;
+  margin: clamp(32px, 5vh, 58px) 0 22px;
+  padding: 0;
+}
+
+.journey-auth-page.is-registration .journey-auth-pitch .tracker-eyebrow {
+  color: #708847;
+  letter-spacing: 1.7px;
+}
+
+.journey-auth-page.is-registration .journey-auth-pitch h1 {
+  margin: 14px 0 13px;
+  color: #244332;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: clamp(39px, 4.6vw, 58px);
+  font-weight: 750;
+  letter-spacing: -1.8px;
+  line-height: 1.06;
+}
+
+.journey-auth-page.is-registration .journey-auth-pitch h1 em {
+  color: #70894c;
+  font-style: normal;
+}
+
+.journey-auth-page.is-registration .journey-auth-pitch p {
+  max-width: 380px;
+  color: #687869;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.journey-auth-illustration {
+  z-index: 1;
+  width: min(100%, 390px);
+  margin: 0 0 25px;
+  padding: 16px 19px 13px;
+  border: 1px solid #e4e8d9;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fffefa, #f8f8f0);
+  box-shadow: 0 16px 36px #2636240c, inset 0 1px #fff;
+}
+
+.journey-auth-illustration-top,
+.journey-auth-illustration-top > span,
+.journey-auth-illustration-bottom {
+  display: flex;
+  align-items: center;
+}
+
+.journey-auth-illustration-top {
+  justify-content: space-between;
+}
+
+.journey-auth-illustration-top > span {
+  gap: 7px;
+  color: #607d49;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+}
+
+.journey-auth-illustration-top small,
+.journey-auth-illustration-bottom small {
+  color: #8a9585;
+  font-size: 9px;
+}
+
+.journey-auth-orbit {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin: 2px auto 0;
+  display: grid;
+  place-items: center;
+}
+
+.journey-auth-orbit-ring {
+  position: absolute;
+  inset: 14px;
+  border: 1px solid #82985b42;
+  border-radius: 50%;
+  box-shadow: 0 0 0 15px #82985b0a, 0 0 0 31px #82985b08;
+}
+
+.journey-auth-orbit-center,
+.journey-auth-orbit-item {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ffffffc7;
+  border-radius: 50%;
+  box-shadow: 0 8px 20px #26362418;
+}
+
+.journey-auth-orbit-center {
+  width: 58px;
+  height: 58px;
+  background: #e3ebd2;
+  color: #24543a;
+}
+
+.journey-auth-orbit-item {
+  width: 34px;
+  height: 34px;
+  background: #668056;
+  color: #fffefa;
+}
+
+.journey-auth-orbit-food {
+  top: 9px;
+  left: 58px;
+}
+
+.journey-auth-orbit-move {
+  right: 3px;
+  bottom: 32px;
+  background: #a28a51;
+}
+
+.journey-auth-orbit-grow {
+  bottom: 29px;
+  left: 3px;
+  background: #7c9366;
+}
+
+.journey-auth-illustration-bottom {
+  gap: 9px;
+  color: #405841;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.journey-auth-illustration-bottom i {
+  height: 4px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #e8ebdf;
+}
+
+.journey-auth-illustration-bottom i span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: inherit;
+  background: #8ca75e;
+}
+
+.journey-auth-page.is-registration .journey-auth-note {
+  max-width: 390px;
+  color: #788578;
+  font-size: 10px;
+}
+
+.journey-auth-page.is-registration .journey-auth-note > span {
+  color: #78934e;
+}
+
+.journey-auth-page.is-registration .journey-auth-main {
+  padding: 42px clamp(28px, 5vw, 76px);
+}
+
+.journey-auth-card.is-registration {
+  width: min(100%, 470px);
+  padding: 38px 40px 30px;
+  border-color: #e9e9dc;
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse at 100% 0, #f3f4e8 0, transparent 32%),
+    #fffefa;
+  box-shadow: 0 24px 70px #26362412, 0 3px 12px #26362408;
+}
+
+.journey-auth-card.is-registration > .tracker-eyebrow {
+  margin-top: 16px;
+  color: #779052;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+}
+
+.journey-auth-card.is-registration h2 {
+  margin-top: 9px;
+  color: #213d2d;
+  font-size: 29px;
+  letter-spacing: -.7px;
+}
+
+.journey-auth-card.is-registration .journey-auth-description {
+  margin: 8px 0 16px;
+  color: #788477;
+  font-size: 12px;
+}
+
+.journey-auth-register-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 20px;
+  padding: 11px 12px;
+  border: 1px solid #e7ecd9;
+  border-radius: 11px;
+  background: #f5f7ed;
+  color: #536b47;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.journey-auth-register-prompt svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #80974e;
+}
+
+.journey-auth-card.is-registration .journey-auth-field {
+  gap: 8px;
+  margin-top: 14px;
+  color: #49604d;
+  font-size: 11px;
+}
+
+.journey-auth-card.is-registration .journey-auth-field > div {
+  height: 46px;
+  border-color: #e4e8dc;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.journey-auth-card.is-registration .journey-auth-field input {
+  font-size: 12px;
+}
+
+.journey-auth-card.is-registration .journey-auth-submit {
+  min-height: 48px;
+  margin-top: 22px;
+  border-radius: 11px;
+  font-size: 12px;
+  letter-spacing: .1px;
+  box-shadow: 0 8px 18px #275b4026;
+}
+
+.journey-auth-card.is-registration .journey-auth-switch {
+  margin-top: 19px;
+  font-size: 11px;
+}
+
+.journey-auth-card.is-registration .journey-auth-switch button {
+  color: #47733f;
+  font-size: 11px;
+}
+
+.journey-auth-card.is-registration .journey-auth-privacy {
+  margin-top: 20px;
+  padding-top: 13px;
+  border-color: #eceee5;
+  color: #919a8a;
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  .journey-auth-page.is-registration {
+    grid-template-columns: minmax(300px, .85fr) minmax(410px, 1.15fr);
+  }
+
+  .journey-auth-page.is-registration .journey-auth-brand {
+    padding: 30px;
+  }
+
+  .journey-auth-page.is-registration .journey-auth-main {
+    padding: 32px 28px;
+  }
+
+  .journey-auth-card.is-registration {
+    padding: 32px 30px 26px;
+  }
+}
+
+@media (max-width: 700px) {
+  .journey-auth-page.is-registration {
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse at 100% 0, #e8eddc 0, transparent 34%),
+      #f6f5ee;
+  }
+
+  .journey-auth-page.is-registration .journey-auth-main {
+    min-height: 100vh;
+    padding: 20px 14px;
+  }
+
+  .journey-auth-card.is-registration {
+    padding: 26px 22px 22px;
+    border-radius: 19px;
+  }
+
+  .journey-auth-card.is-registration > .tracker-eyebrow {
+    margin-top: 17px;
+  }
+}
+
+@media (max-width: 380px) {
+  .journey-auth-card.is-registration {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+}
