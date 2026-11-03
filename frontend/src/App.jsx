@@ -19,6 +19,7 @@ export default function App() {
   );
   const [authMode, setAuthMode] = useState("login");
   const [startupMessage, setStartupMessage] = useState("");
+  const [mealEntryRequest, setMealEntryRequest] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -85,9 +86,19 @@ export default function App() {
     }
   }
 
+  function quickLogMeal() {
+    setActivePage("Daily Meal Tracker");
+    setMealEntryRequest(request => request + 1);
+  }
+
   const pages = {
     Dashboard: <Dashboard user={user} setActivePage={setActivePage} />,
-    "Daily Meal Tracker": <DailyMealTracker userId={user?.id} />,
+    "Daily Meal Tracker": (
+      <DailyMealTracker
+        userId={user?.id}
+        openMealEntryRequest={mealEntryRequest}
+      />
+    ),
     "Meal Planner": <MealPlanner userId={user?.id} setActivePage={setActivePage} />,
     "Weight Journey": <WeightJourney user={user} onUserUpdate={setUser} />,
     "Health Coach": <HealthCoach user={user} setActivePage={setActivePage} />
@@ -102,6 +113,7 @@ export default function App() {
     <Layout
       activePage={activePage}
       setActivePage={setActivePage}
+      onQuickLogMeal={quickLogMeal}
       onLogout={logout}
       user={user}
     >

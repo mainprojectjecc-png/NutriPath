@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, CalendarDays, ChevronLeft, ChevronRight, Droplets, Flame, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import { Activity, CalendarDays, ChevronLeft, ChevronRight, Droplets, Flame, Plus, Sparkles, Target, Trash2, X } from "lucide-react";
 import MealFoodModal from "./MealFoodModal";
 import MealHistoryCalendar from "./MealHistoryCalendar";
 import NutritionChart from "./NutritionChart";
@@ -47,12 +47,13 @@ function getInsight(totals, calorieGoal, meals, selectedDate) {
   return `A balanced day so far: ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs and ${Math.round(totals.fats)}g fats across ${dayMeals.length} logged ${dayMeals.length === 1 ? "food" : "foods"}. Keep it up!`;
 }
 
-export default function DailyMealTracker({ userId = "guest" }) {
+export default function DailyMealTracker({ userId = "guest", openMealEntryRequest = 0 }) {
   const today = dateKey(new Date());
   const [data, setData] = useState(null);
   const [foods, setFoods] = useState(foodCatalog);
   const [selectedDate, setSelectedDate] = useState(today);
   const [modalMealType, setModalMealType] = useState(null);
+  const [showMealTypePicker, setShowMealTypePicker] = useState(false);
   const [chartPeriod, setChartPeriod] = useState("week");
   const [waterAmount, setWaterAmount] = useState("250");
   const [editingWaterId, setEditingWaterId] = useState(null);
@@ -64,6 +65,12 @@ export default function DailyMealTracker({ userId = "guest" }) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [waterSaving, setWaterSaving] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
+
+  useEffect(() => {
+    if (openMealEntryRequest > 0) {
+      setShowMealTypePicker(true);
+    }
+  }, [openMealEntryRequest]);
 
   useEffect(() => {
     let active = true;
@@ -282,6 +289,56 @@ export default function DailyMealTracker({ userId = "guest" }) {
       </div>
       <p className="tracker-data-note">Your food and water logs are saved to your NutriPath account. Nutrition values are estimates and may vary by recipe and preparation.</p>
       {modalMealType && <MealFoodModal mealType={modalMealType} foods={foods} catalogError={catalogError} onClose={() => setModalMealType(null)} onAdd={addFood} />}
+      {showMealTypePicker && (
+        <div
+          className="tracker-modal-backdrop"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) setShowMealTypePicker(false);
+          }}
+        >
+          <section
+            className="tracker-food-modal quick-meal-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quick-meal-picker-title"
+          >
+            <div className="tracker-modal-heading">
+              <div>
+                <span className="tracker-eyebrow">YOUR FOOD JOURNAL</span>
+                <h2 id="quick-meal-picker-title">What are you logging?</h2>
+              </div>
+              <button
+                type="button"
+                className="tracker-icon-button"
+                aria-label="Close meal type picker"
+                onClick={() => setShowMealTypePicker(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="quick-meal-picker-description">Choose a meal to find foods and add them to today’s tracker.</p>
+            <div className="quick-meal-type-grid">
+              {mealTypes.map(mealType => (
+                <button
+                  type="button"
+                  className="quick-meal-type-option"
+                  key={mealType}
+                  onClick={() => {
+                    setShowMealTypePicker(false);
+                    setModalMealType(mealType);
+                  }}
+                >
+                  <span aria-hidden="true">
+                    {mealType === "Breakfast" ? "☀️" : mealType === "Lunch" ? "🥗" : mealType === "Snacks" ? "🍎" : "🌙"}
+                  </span>
+                  <strong>{mealType}</strong>
+                  <small>{dayMeals.filter(meal => meal.mealType === mealType).length} foods logged</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

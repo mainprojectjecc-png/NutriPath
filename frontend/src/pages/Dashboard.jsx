@@ -1,8 +1,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight, CalendarDays, Clock, Droplets, Flame, Footprints,
-  Scale, Sparkles, Target, TrendingDown, Weight
+  ArrowUpRight, CalendarDays, ClipboardList, Clock, Droplets, Flame,
+  Footprints, HeartPulse, Scale, Sparkles, Target, TrendingDown, Utensils,
+  Weight
 } from "lucide-react";
 import api from "../services/api";
 import { getNutritionData } from "../services/nutrition";
@@ -81,10 +82,12 @@ export default function Dashboard({ user, setActivePage }) {
   const waterGoal = mealData?.waterGoal || 2500;
   const firstName = user.full_name.split(" ")[0] || "there";
   const mealCount = new Set(meals.map(meal => meal.mealType)).size;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return <>
     <div className="welcome-row">
-      <div><span className="eyebrow">YOUR PERSONAL HEALTH SPACE</span><h1>Welcome back, {firstName} <span>🌿</span></h1><p>Your journey is yours. Let’s see how you’re doing today.</p></div>
+      <div><span className="eyebrow">YOUR PERSONAL HEALTH SPACE</span><h1>{greeting}, {firstName} <span>🌿</span></h1><p>Your journey is yours. Let’s see how you’re doing today.</p></div>
       <div className="date-pill"><CalendarDays size={15} />{new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div>
     </div>
 
@@ -102,6 +105,50 @@ export default function Dashboard({ user, setActivePage }) {
       <div className="stat-card"><div className="stat-top"><div><p className="muted">Water intake</p><h2>{(water / 1000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} <small>L</small></h2></div><div className="stat-icon blue"><Droplets /></div></div><div className="progress-track"><div className="progress-fill blue" style={{ width: `${Math.min(water / waterGoal * 100, 100)}%` }} /></div><span className="stat-note">{(waterGoal / 1000).toFixed(1)} L daily goal</span></div>
       <div className="stat-card"><div className="stat-top"><div><p className="muted">Exercise</p><h2 className="dashboard-exercise-title">Not logged</h2></div><div className="stat-icon purple"><Footprints /></div></div><span className="stat-note">{journey?.profile.exercise_preferences ? `Preference: ${journey.profile.exercise_preferences}` : "No exercise entries recorded"}</span></div>
     </div>
+
+    <section className="dashboard-next-steps" aria-labelledby="dashboard-next-steps-title">
+      <div className="dashboard-next-steps-heading">
+        <div>
+          <span className="eyebrow">KEEP YOUR MOMENTUM</span>
+          <h2 id="dashboard-next-steps-title">What would you like to focus on?</h2>
+        </div>
+        <span className="dashboard-next-steps-note">Choose a next step that works for you.</span>
+      </div>
+      <div className="dashboard-action-grid">
+        <button type="button" className="dashboard-action-card" onClick={() => setActivePage("Daily Meal Tracker")}>
+          <span className="dashboard-action-icon"><ClipboardList size={19} /></span>
+          <span className="dashboard-action-copy">
+            <strong>{meals.length ? "Add a meal or snack" : "Log your first meal"}</strong>
+            <small>{meals.length ? `${meals.length} ${meals.length === 1 ? "meal" : "meals"} logged today` : "Keep your nutrition journal up to date"}</small>
+          </span>
+          <ArrowUpRight size={17} aria-hidden="true" />
+        </button>
+        <button type="button" className="dashboard-action-card" onClick={() => setActivePage("Meal Planner")}>
+          <span className="dashboard-action-icon"><Utensils size={19} /></span>
+          <span className="dashboard-action-copy">
+            <strong>Plan your meals</strong>
+            <small>Find ideas for what to eat next</small>
+          </span>
+          <ArrowUpRight size={17} aria-hidden="true" />
+        </button>
+        <button type="button" className="dashboard-action-card" onClick={() => setActivePage("Weight Journey")}>
+          <span className="dashboard-action-icon"><Scale size={19} /></span>
+          <span className="dashboard-action-copy">
+            <strong>Check your progress</strong>
+            <small>Review your goals and milestones</small>
+          </span>
+          <ArrowUpRight size={17} aria-hidden="true" />
+        </button>
+        <button type="button" className="dashboard-action-card" onClick={() => setActivePage("Health Coach")}>
+          <span className="dashboard-action-icon"><HeartPulse size={19} /></span>
+          <span className="dashboard-action-copy">
+            <strong>Get some guidance</strong>
+            <small>Explore your Health Coach space</small>
+          </span>
+          <ArrowUpRight size={17} aria-hidden="true" />
+        </button>
+      </div>
+    </section>
 
     <div className="dashboard-grid dashboard-meal-summary-grid">
       <section className="panel"><div className="panel-heading"><div><h3>Today’s food journal</h3><p>Your actual logged meals and nutrition</p></div><span className="today-label">{mealCount} {mealCount === 1 ? "MEAL" : "MEALS"}</span></div>
